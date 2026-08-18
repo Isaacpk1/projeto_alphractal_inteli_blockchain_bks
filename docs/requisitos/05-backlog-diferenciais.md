@@ -31,7 +31,9 @@ Basis points são a linguagem de mesa de operações — traduzir gas para bps �
 
 ### D-02 · Percentil histórico do gas atual — 1 dia · impacto alto
 
-Em vez de rótulos arbitrários, exibir **"24 gwei = percentil 18 dos últimos 30 dias"**. É estatisticamente honesto, elimina a decisão arbitrária da RN-04 (que hoje depende de validação do parceiro) e é imediatamente interpretável. Também justifica o investimento no banco de dados.
+Exibir **"24 gwei = percentil 18 dos últimos 30 dias"** ao lado do indicador da RN-04. Dá contexto de **nível** onde a RN-04 só dá **variação**, é imediatamente interpretável e justifica o investimento no banco de dados.
+
+> ⚠️ **Complemento, não substituto da RN-04.** Uma versão anterior deste documento propunha trocar uma pela outra — isso era um erro. Elas respondem a perguntas diferentes, e um indicador puramente histórico se aproximaria justamente das *"médias históricas estáticas"* que o TAP aponta como o problema a resolver. O percentil contextualiza; a RN-04 detecta o movimento.
 
 **Critérios de aceite**
 

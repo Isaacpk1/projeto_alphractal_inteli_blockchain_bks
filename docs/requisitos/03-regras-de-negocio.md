@@ -70,7 +70,9 @@ Compara a `baseFee` atual com a média móvel dos últimos N blocos:
 | 130–200% | acima | Alto |
 | > 200% | muito acima | Extremo |
 
-*(faixas a validar com a Alphractal — dúvida nº 6. Ver também o diferencial **D-02**, que substitui esses limiares arbitrários por percentil histórico.)*
+**Procedência:** o termo *"saúde da rede"* vem literalmente do TAP — *"uma métrica de 'saúde' atual da rede"* (seção 2, Problema). O **método de cálculo e as faixas acima não vêm do TAP**: são proposta nossa, preenchendo uma lacuna. Daí a marcação *a validar* (dúvida nº 6).
+
+**Limitação conhecida desta regra.** Por comparar com uma média móvel curta, ela mede **variação**, não **nível**. Num período sustentado de taxas altas, a média móvel acompanha a subida e o indicador volta a marcar "Normal" — mesmo com o gas historicamente caro. É um ponto cego real, e o diferencial **D-02** (percentil histórico) existe para cobri-lo. Os dois são **complementares, não substitutos**: esta regra responde *"está subindo agora?"*; o percentil responde *"está caro em termos históricos?"*.
 
 ### RN-05 — Projeção da base fee do próximo bloco
 

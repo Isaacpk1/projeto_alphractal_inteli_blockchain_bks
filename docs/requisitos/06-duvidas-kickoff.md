@@ -16,8 +16,9 @@
 → *Contexto a levar à reunião (números verificados — ver [08 — Orçamento RPC](./08-orcamento-rpc.md)):* a subscription de transações pendentes **não é bloqueada por plano** na Alchemy, mas é cobrada **por byte entregue** (0,04 CU/byte). Na prática: só com hashes, esgota os 30 M CU do plano gratuito em **~7 dias**; com objetos completos, em **menos de 24 h** — e ainda esbarra no teto de 500 CUPS.
 → *Portanto a pergunta real é:* **vocês têm plano pago?** Em PAYG (US$ 0,45/M CU) a mempool passa a ser uma decisão de orçamento, não de viabilidade. *Impacta:* RF-07.
 
-**6. Definição de "saúde da rede".** Como a Alphractal define isso hoje? Existem faixas/limiares já usados por vocês, ou definimos nós?
-→ *Impacta:* RN-04. *Alternativa que propomos:* substituir limiares arbitrários por percentil histórico (D-02), que é estatisticamente mais honesto.
+**6. Definição de "saúde da rede".** O TAP pede *"uma métrica de 'saúde' atual da rede"*, mas não define como calculá-la. Vocês já têm faixas/limiares em uso na plataforma, ou definimos nós?
+→ *Se formos definir:* a proposta atual (RN-04) compara a base fee com uma média móvel curta — ou seja, mede **variação**. Isso tem um ponto cego: num período sustentadamente caro, a média acompanha e o indicador volta a marcar "Normal". A sugestão é exibir **junto** o percentil histórico (D-02), que dá o **nível**. Queremos validar se essa leitura em duas dimensões faz sentido para o usuário de vocês, ou se preferem um único rótulo simples.
+→ *Impacta:* RN-04, D-02.
 
 **11. Design e identidade visual.** Existe Figma, design system ou tokens de cor da Alphractal que possamos usar para o painel se integrar à aba "Fees"? Podemos receber prints da aba atual?
 → *Impacta:* a entrega da semana 1 (protótipo de alta fidelidade) trava sem isso.
