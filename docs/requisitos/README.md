@@ -41,6 +41,7 @@ Frontend React + Vite + TypeScript  →  painel da aba "Fees"
 | [05 — Backlog de Diferenciais](./05-backlog-diferenciais.md) | Ideias de valor agregado, com esforço e critérios de aceite |
 | [06 — Dúvidas para o Kick-off](./06-duvidas-kickoff.md) | Perguntas a levar em 14/09 |
 | [07 — Riscos](./07-riscos.md) | Riscos técnicos e mitigações |
+| [08 — Orçamento RPC](./08-orcamento-rpc.md) | Custo em Compute Units por funcionalidade e limites do plano |
 
 ## Convenções
 

@@ -4,7 +4,7 @@
 
 | # | Risco | Prob. | Impacto | Mitigação |
 |---|---|---|---|---|
-| R-01 | **Limite do plano RPC estourar** durante testes ou na demo | Média | Alto | Uma única conexão compartilhada (RF-19), cache agressivo, evitar `pendingTransactions`; monitorar consumo diariamente (RNF-05) |
+| R-01 | **Limite do plano RPC estourar** durante testes ou na demo — o MVP consome ~73% da cota gratuita mensal rodando 24/7 | **Alta** | Alto | Uma única chave e um único processo ingerindo (a cota é por conta, não por app); não deixar backend de dev ligado 24/7; evitar `pendingTransactions`; monitorar consumo semanalmente. Orçamento detalhado em [08](./08-orcamento-rpc.md) |
 | R-02 | **Latência do provedor** mascarar o "tempo real" | Média | Alto | Medir e **exibir** a defasagem no painel (D-07); trocar de provedor se o p95 passar de 2 s (RNF-01) |
 | R-03 | **Erro de precisão numérica** com valores em wei | Alta | Alto | `bigint` obrigatório em toda aritmética (RN-06); testes unitários com valores extremos (RNF-15) |
 | R-04 | **Mempool subestimada em complexidade** consumir a semana 3 | Alta | Médio | Manter RF-07 como *Could*; decidir na dúvida nº 3 do kick-off, não durante o desenvolvimento |

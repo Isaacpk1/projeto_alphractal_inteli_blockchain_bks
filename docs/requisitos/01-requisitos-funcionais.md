@@ -18,7 +18,7 @@ Prioridade: **[M]** Must · **[S]** Should · **[C]** Could
 | RF-06 | O sistema deve suportar um provedor RPC secundário (failover) configurável por variável de ambiente. | C |
 | RF-07 | O sistema deve coletar métricas de mempool (nº de transações pendentes e *gas price* médio das pendentes). | C |
 
-> ⚠️ **RF-07** depende da dúvida nº 3 do kick-off: assinar `pendingTransactions` é caro e costuma ser bloqueado em planos gratuitos. Tratar como *Could* até confirmação.
+> ⚠️ **RF-07** depende da dúvida nº 3 do kick-off. A subscription não é bloqueada por plano, mas é cobrada por byte entregue: no plano gratuito da Alchemy ela esgota a cota mensal em ~7 dias (só hashes) ou em menos de 24 h (objetos completos). Ver [08 — Orçamento RPC](./08-orcamento-rpc.md). Manter como *Could* salvo confirmação de plano pago.
 
 ## 2. Cálculo e enriquecimento
 

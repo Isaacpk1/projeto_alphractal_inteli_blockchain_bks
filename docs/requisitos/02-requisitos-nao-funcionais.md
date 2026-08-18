@@ -12,7 +12,7 @@
 | RNF-02 | O endpoint de snapshot deve responder em **< 300 ms (p95)**, servido do estado em memória, sem chamada síncrona ao RPC. | Teste de carga simples (`autocannon`/`k6`) |
 | RNF-03 | O frontend não deve re-renderizar a árvore inteira a cada atualização; atualizações devem ser isoladas por componente (memoização / estado local). | React DevTools Profiler — nenhum render desnecessário acima do card |
 | RNF-04 | O sistema deve suportar pelo menos **100 clientes SSE simultâneos** com uma única conexão RPC. | Script de 100 conexões `EventSource` mantidas por 10 min |
-| RNF-05 | O consumo de requisições ao provedor RPC deve caber no plano gratuito contratado. | Painel de uso do Alchemy/Infura ao fim de um dia de execução contínua |
+| RNF-05 | O consumo de Compute Units deve caber no plano contratado com **margem de segurança ≥ 30%**. Estimativa do MVP: ~22 M CU/mês contra 30 M do plano gratuito da Alchemy — ver [08 — Orçamento RPC](./08-orcamento-rpc.md). | Painel de uso do provedor conferido ao fim da semana 2, antes de aprovar qualquer item do backlog que aumente o tráfego |
 
 ## 2. Confiabilidade
 

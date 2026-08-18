@@ -13,7 +13,8 @@
 → *Impacta:* RF-01, RNF-05, e a viabilidade de D-06.
 
 **3. Mempool real ou métricas derivadas?** Vocês querem dados reais de transações pendentes, ou basta `baseFee` + `eth_feeHistory`?
-→ *Contexto a explicar na reunião:* assinar `pendingTransactions` é caro e costuma ser bloqueado em planos básicos. Se for requisito real, muda arquitetura e custo. *Impacta:* RF-07.
+→ *Contexto a levar à reunião (números verificados — ver [08 — Orçamento RPC](./08-orcamento-rpc.md)):* a subscription de transações pendentes **não é bloqueada por plano** na Alchemy, mas é cobrada **por byte entregue** (0,04 CU/byte). Na prática: só com hashes, esgota os 30 M CU do plano gratuito em **~7 dias**; com objetos completos, em **menos de 24 h** — e ainda esbarra no teto de 500 CUPS.
+→ *Portanto a pergunta real é:* **vocês têm plano pago?** Em PAYG (US$ 0,45/M CU) a mempool passa a ser uma decisão de orçamento, não de viabilidade. *Impacta:* RF-07.
 
 **6. Definição de "saúde da rede".** Como a Alphractal define isso hoje? Existem faixas/limiares já usados por vocês, ou definimos nós?
 → *Impacta:* RN-04. *Alternativa que propomos:* substituir limiares arbitrários por percentil histórico (D-02), que é estatisticamente mais honesto.
