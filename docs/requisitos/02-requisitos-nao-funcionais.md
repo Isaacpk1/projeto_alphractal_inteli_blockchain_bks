@@ -38,8 +38,9 @@
 
 | ID | Requisito |
 |---|---|
-| RNF-13 | TypeScript em modo `strict` no backend e no frontend, com tipos do contrato de dados compartilhados entre os dois. |
+| RNF-13 | Tipagem estrita em todas as camadas: **TypeScript `strict`** no React; **`<Nullable>enable</Nullable>` + `TreatWarningsAsErrors`** no .NET; **`mypy`** no ETL Python. O contrato de dados do SSE deve ter uma definição única e versionada, gerada ou espelhada entre C# e TypeScript. |
 | RNF-14 | Arquitetura em camadas desacopladas — *provider* (RPC) → *service* (regras) → *repository* (dados) → *transport* (SSE/HTTP) — permitindo trocar provedor, banco ou transporte sem reescrever a lógica de negócio. |
+| RNF-30 | O caminho quente (.NET → SSE → React) não deve depender de ClickHouse nem do ETL Python: com o banco fora do ar, o painel ao vivo continua funcionando, perdendo apenas as visões históricas. |
 | RNF-15 | Testes unitários automatizados para as regras de cálculo (RN-01 a RN-06), com blocos mockados, incluindo casos de borda (base fee no mínimo, bloco cheio, bloco vazio). |
 | RNF-16 | Lint e formatação padronizados (ESLint + Prettier) e mensagens de commit convencionais. |
 | RNF-17 | README com instruções de instalação, execução e descrição da arquitetura; endpoints documentados. |
@@ -61,6 +62,6 @@
 
 | ID | Requisito |
 |---|---|
-| RNF-22 | Execução local com um único comando por serviço (`npm run dev`) e, opcionalmente, `docker-compose up`. |
+| RNF-22 | Execução local via **`docker-compose up`** — obrigatório, não opcional: ClickHouse exige container, e são quatro componentes (React, .NET, Python, ClickHouse). Um `README` deve permitir a um avaliador subir tudo sem conhecimento prévio da stack. |
 | RNF-23 | Código publicado em repositório público sob licença **MIT**. |
 | RNF-24 | O sistema não coleta nem armazena dados pessoais de usuários — fora do escopo de LGPD. |

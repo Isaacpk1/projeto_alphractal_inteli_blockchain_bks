@@ -39,7 +39,12 @@ A cotação é atualizada no máximo a cada **60 s**. Se estiver defasada há ma
 ### RN-06 — Unidades e precisão
 
 - Exibição: gwei com 2 casas · USD com 2 casas · ETH com até 6 casas.
-- **Toda aritmética interna usa `bigint` em wei.** Nunca `float`/`number` — a precisão de ponto flutuante corrompe valores em wei e propaga erro para o custo em USD. A conversão para decimal acontece somente na formatação final.
+- **Toda aritmética interna usa inteiros em wei**, nunca ponto flutuante. A conversão para decimal acontece somente na formatação final.
+  - **.NET:** `System.Numerics.BigInteger` (a Nethereum já opera com ele de ponta a ponta).
+  - **ClickHouse:** `UInt64` / `UInt256` nativos. Valores monetários em `Decimal`, nunca `Float64`.
+  - **React:** recebe valores **já formatados pelo backend** (RN-09) — o front não faz aritmética de wei, o que contorna o limite de 2⁵³ do `number` do JavaScript.
+
+> A versão anterior desta especificação exigia guardar wei como `TEXT` no banco, por limitação do SQLite. **Regra revogada:** o ClickHouse tem tipos inteiros largos nativos.
 
 ### RN-11 — Gas limits de referência
 
@@ -88,7 +93,12 @@ Se não chegar bloco novo em mais de **60 s** (≈5 blocos), o painel deve sair 
 
 ### RN-08 / RN-16 — Reorganização de cadeia (*reorg*)
 
-Se chegar um bloco com número **menor ou igual** ao último processado, o registro existente é **sobrescrito**, nunca duplicado nem mantido em paralelo. O histórico é corrigido tanto em memória quanto no banco.
+Se chegar um bloco com número **menor ou igual** ao último processado, ele **substitui** o anterior — nunca é duplicado nem mantido em paralelo.
+
+- **Em memória (.NET):** substituição direta na posição do ring buffer.
+- **No ClickHouse:** não existe `UPDATE` barato. A correção é **inserir uma nova versão da linha**; o `ReplacingMergeTree(ingested_at)` mantém a mais recente. A deduplicação é **assíncrona** (ocorre na fusão dos parts), então consultas que exigem garantia usam `FINAL` ou `argMax()`.
+
+> Atenção: `PRIMARY KEY` no ClickHouse é índice esparso, **não** restrição de unicidade — inserir o mesmo bloco duas vezes cria duas linhas. Ver [04 §1.2](./04-persistencia-banco-de-dados.md).
 
 ---
 

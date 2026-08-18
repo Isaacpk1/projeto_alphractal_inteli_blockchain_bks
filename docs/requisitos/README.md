@@ -12,21 +12,35 @@ A aba "Fees" da Alphractal hoje se apoia em **médias históricas estáticas**, 
 
 O diferencial não é mostrar mais números — é responder **"o que eu faço agora?"**.
 
+## Stack
+
+Definida pela **Alphractal** — é a infraestrutura de produção deles, o que aumenta a chance de o código ser absorvido ao fim do projeto.
+
+| Camada | Tecnologia |
+|---|---|
+| Frontend | React |
+| Backend / API | .NET (ASP.NET Core) |
+| ETL | Python |
+| Banco analítico | ClickHouse |
+
 ## Arquitetura de referência
 
+Dois caminhos independentes — detalhamento em [09 — Arquitetura e Stack](./09-arquitetura-e-stack.md).
+
 ```
-Nó RPC (Alchemy/Infura)
-        │  WebSocket (newHeads, eth_feeHistory)
-        ▼
-Backend Node.js + TypeScript
-  ├── provider   → conexão RPC, reconexão, backfill
-  ├── service    → cálculo de faixas, USD, congestionamento  (regras de negócio)
-  ├── repository → persistência (SQLite → Postgres)
-  └── transport  → SSE + REST
-        │  SSE (1 conexão RPC → N clientes)
-        ▼
-Frontend React + Vite + TypeScript  →  painel da aba "Fees"
+CAMINHO QUENTE (< 2 s)                       CAMINHO FRIO (minutos)
+
+Alchemy ──WebSocket──▶ .NET                  .NET ──spool NDJSON──▶ Python ETL
+                        ├─ Nethereum                                     │
+                        ├─ regras RN-01..05                              ▼
+                        ├─ 300 blocos em RAM                        ClickHouse
+                        └─ fan-out Channel<T>                     (materialized
+                              │ SSE                                   views)
+                              ▼                                          │
+                        React (painel)  ◀──── /api/history ── .NET ◀──────┘
 ```
+
+**Regra estrutural:** o tempo real nunca passa por Python nem por ClickHouse (RN-14).
 
 **Restrições do TAP:** somente leitura (nenhuma transação assinada ou enviada), sem deploy em Mainnet, sem integração no ambiente de produção da Alphractal, sem auditoria formal de segurança.
 
@@ -42,6 +56,7 @@ Frontend React + Vite + TypeScript  →  painel da aba "Fees"
 | [06 — Dúvidas para o Kick-off](./06-duvidas-kickoff.md) | Perguntas a levar em 14/09 |
 | [07 — Riscos](./07-riscos.md) | Riscos técnicos e mitigações |
 | [08 — Orçamento RPC](./08-orcamento-rpc.md) | Custo em Compute Units por funcionalidade e limites do plano |
+| [09 — Arquitetura e Stack](./09-arquitetura-e-stack.md) | Caminho quente vs frio, responsabilidades .NET/Python, linha de corte do MVP |
 
 ## Convenções
 

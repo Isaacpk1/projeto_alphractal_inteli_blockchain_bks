@@ -61,17 +61,21 @@ Prioridade: **[M]** Must · **[S]** Should · **[C]** Could
 | RF-32 | O painel deve exibir estados de carregamento, vazio e erro de forma explícita. | S |
 | RF-33 | O frontend deve reconectar automaticamente ao SSE após perda de conexão. | M |
 
-## 5. Persistência
+## 5. Persistência e ETL
 
-*(detalhamento e justificativa em [04 — Persistência e Banco de Dados](./04-persistencia-banco-de-dados.md))*
+*(detalhamento em [04 — Persistência (ClickHouse)](./04-persistencia-banco-de-dados.md) e [09 — Arquitetura](./09-arquitetura-e-stack.md))*
+
+> Toda esta seção pertence ao **caminho frio**. Nenhum item aqui pode ser pré-requisito do painel ao vivo — ver a linha de corte em [09 §4](./09-arquitetura-e-stack.md).
 
 | ID | Requisito | Prio |
 |---|---|---|
-| RF-34 | O sistema deve persistir cada bloco processado de forma idempotente (`UPSERT` por `block_number`). | S |
-| RF-35 | Ao iniciar, o sistema deve recarregar a janela recente do banco para a memória, para que o painel abra já com o gráfico populado. | S |
-| RF-36 | Ao iniciar ou reconectar, o sistema deve detectar lacunas entre o último bloco persistido e o bloco atual da rede e fazer *backfill* via RPC (limitado a uma janela máxima). | C |
-| RF-37 | O sistema deve consolidar agregados horários e aplicar política de retenção, removendo dados brutos além do período configurado. | C |
-| RF-38 | O endpoint de histórico deve aceitar janelas maiores (24 h, 7 d), servindo dados brutos ou agregados conforme o intervalo pedido. | C |
+| RF-34 | O .NET deve gravar cada bloco processado no spool NDJSON, e o ETL Python deve carregá-lo no ClickHouse **em lote** (mín. ~5 registros ou 60 s por `INSERT`) — nunca linha a linha. | S |
+| RF-35 | Ao iniciar, o .NET deve recarregar a janela quente consultando o ClickHouse com `FINAL`/`argMax()`, para que o painel abra já com o gráfico populado. | S |
+| RF-36 | O ETL deve oferecer um script de *backfill* sob demanda, detectando lacunas de blocos e buscando-as via RPC, com controle explícito de consumo de CU. | C |
+| RF-37 | Agregados horários devem ser mantidos por **materialized view** (`AggregatingMergeTree`), e a retenção dos dados brutos por `TTL` declarativo. | C |
+| RF-38 | O endpoint de histórico deve aceitar janelas maiores (24 h, 7 d), lendo os agregados; janelas curtas continuam vindo da memória. | C |
+| RF-39 | O ETL deve ser idempotente: reprocessar o mesmo arquivo de spool não pode duplicar dados nas consultas. | S |
+| RF-40 | O ETL deve mover arquivos processados para um diretório separado apenas após confirmação do `INSERT`, permitindo reprocessamento em caso de falha. | S |
 
 ---
 
@@ -79,8 +83,8 @@ Prioridade: **[M]** Must · **[S]** Should · **[C]** Could
 
 | Prioridade | Quantidade | Observação |
 |---|---|---|
-| **Must** | 20 | Define o MVP demonstrável em 05/10 |
-| **Should** | 10 | Alvo realista se as semanas 2 e 3 correrem bem |
+| **Must** | 20 | Define o MVP demonstrável em 05/10 — **todos no caminho quente (.NET + React)** |
+| **Should** | 14 | Alvo realista se as semanas 2 e 3 correrem bem |
 | **Could** | 8 | Só após todos os *Must* e *Should* fechados |
 
-**Critério de pronto do MVP:** todos os RF marcados **[M]** implementados, com o painel exibindo dados ao vivo da Mainnet por no mínimo 30 minutos ininterruptos sem intervenção manual.
+**Critério de pronto do MVP:** todos os RF marcados **[M]** implementados, com o painel exibindo dados ao vivo da Mainnet por no mínimo 30 minutos ininterruptos sem intervenção manual — **e sem depender de ClickHouse nem do ETL Python estarem no ar** (RNF-30).

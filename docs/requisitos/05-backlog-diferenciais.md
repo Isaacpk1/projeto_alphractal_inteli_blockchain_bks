@@ -11,6 +11,8 @@ O TAP define o problema como a transição de *"dados puramente informativos"* p
 
 **Esforço** em dias-desenvolvedor (1 dev, considerando o backend já pronto).
 
+> 📌 **A stack ClickHouse barateou este backlog.** `quantile()` nativo e *materialized views* tornam **D-02** (percentil) e **D-04** (heatmap) muito mais simples do que seriam em SQLite — eram os dois itens mais caros da Onda 1 e 2. Em contrapartida, ambos passam a depender do caminho frio estar de pé (ver [09 §4](./09-arquitetura-e-stack.md)).
+
 ---
 
 ## Onda 1 — Alto valor, baixo esforço (recomendados)

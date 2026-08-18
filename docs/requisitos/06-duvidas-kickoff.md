@@ -53,7 +53,7 @@
 
 ## Integração técnica
 
-**12. Transporte.** Vocês preferem **SSE** (como sugerido no TAP) ou o padrão de vocês no frontend é WebSocket? Isso impacta a integração futura.
+**12. Transporte.** O TAP recomenda **SSE**, mas o padrão nativo do .NET para tempo real é o **SignalR**. Qual vocês preferem? SSE é mais simples e não adiciona dependência no React; SignalR é idiomático na stack de vocês e traz reconexão e fallback prontos.
 
 **13. Autenticação e planos.** A plataforma tem autenticação e níveis (free/pro)? O módulo precisa respeitar tiers de acesso ou é aberto no protótipo?
 
@@ -75,6 +75,25 @@
 **19. Repositório.** O repo público MIT fica sob a organização do Inteli Blockchain ou da Alphractal?
 
 **20. Formato da demo.** O que exatamente deve ser demonstrado em 05/10 — rodando localmente ou publicado em algum ambiente (Vercel/Render)?
+
+---
+
+## Stack (definida pela Alphractal)
+
+A stack — React, .NET, Python ETL e ClickHouse — foi definida pelo parceiro. O TAP deixava a escolha livre, então não há conflito. Isso levanta cinco dúvidas novas:
+
+**21. Instância de ClickHouse.** Vocês fornecem uma instância para o protótipo, ou subimos local via Docker? Se for a de vocês, há schema, convenção de nomes ou política de retenção a seguir?
+→ *Impacta:* [04 — Persistência](./04-persistencia-banco-de-dados.md), RNF-22.
+
+**22. Versão e convenções de .NET.** Qual versão vocês usam? Há template de projeto, convenções ou bibliotecas internas que devemos seguir para o código ser absorvível?
+
+**23. Nethereum.** Vocês já usam a Nethereum internamente, ou seria a primeira vez? Existe código de ingestão on-chain em .NET do lado de vocês que possamos usar como referência?
+→ *Por que importa:* é o maior risco de cronograma do projeto (R-13). O ecossistema Web3 documenta quase tudo em `viem`/`ethers`; um exemplo funcionando de vocês economizaria dias.
+
+**24. Padrão de ETL em Python.** Existe orquestrador (Airflow, Dagster, cron), convenção de projeto ou biblioteca comum que devemos seguir?
+
+**25. Divisão .NET vs Python.** Nossa proposta é: **.NET** faz a ingestão ao vivo e o SSE (caminho quente, em memória); **Python** cuida de backfill, agregação e carga no ClickHouse (caminho frio). Isso bate com a forma como vocês separam essas responsabilidades internamente?
+→ *Ver:* [09 — Arquitetura](./09-arquitetura-e-stack.md).
 
 ---
 
@@ -102,3 +121,8 @@
 | 18 | | | |
 | 19 | | | |
 | 20 | | | |
+| 21 | | | |
+| 22 | | | |
+| 23 | | | |
+| 24 | | | |
+| 25 | | | |
