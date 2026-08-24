@@ -2,6 +2,8 @@
 
 # 02 — Requisitos Não Funcionais (RNF)
 
+RNF-01 a RNF-31. IDs cancelados são mantidos riscados e nunca reaproveitados.
+
 ---
 
 ## 1. Desempenho e tempo real
@@ -12,7 +14,7 @@
 | RNF-02 | O endpoint de snapshot deve responder em **< 300 ms (p95)**, servido do estado em memória, sem chamada síncrona ao RPC. | Teste de carga simples (`autocannon`/`k6`) |
 | RNF-03 | O frontend não deve re-renderizar a árvore inteira a cada atualização; atualizações devem ser isoladas por componente (memoização / estado local). | React DevTools Profiler — nenhum render desnecessário acima do card |
 | RNF-04 | O sistema deve suportar pelo menos **100 clientes SSE simultâneos** com uma única conexão RPC. | Script de 100 conexões `EventSource` mantidas por 10 min |
-| RNF-05 | O consumo de Compute Units deve caber no plano contratado com **margem de segurança ≥ 30%**. Estimativa do MVP: ~22 M CU/mês contra 30 M do plano gratuito da Alchemy — ver [08 — Orçamento RPC](./08-orcamento-rpc.md). | Painel de uso do provedor conferido ao fim da semana 2, antes de aprovar qualquer item do backlog que aumente o tráfego |
+| RNF-05 | O consumo de Compute Units deve caber no plano contratado com **margem de segurança ≥ 30%**. O MVP obrigatório (`newHeads` + `eth_feeHistory`) consome ~17,7 M CU/mês contra 30 M do plano gratuito — **41% de margem, dentro do limite**. Somando D-06, sobe para ~22 M e a margem cai a **27%, abaixo do exigido**: D-06 só entra com plano pago ou com o ingestor não rodando 24/7. Ver [08 — Orçamento RPC](./08-orcamento-rpc.md). | Painel de uso do provedor conferido ao fim da semana 2, antes de aprovar qualquer item do backlog que aumente o tráfego |
 
 ## 2. Confiabilidade
 
@@ -39,16 +41,17 @@
 | ID | Requisito |
 |---|---|
 | RNF-13 | Tipagem estrita em todas as camadas: **TypeScript `strict`** no React; **`<Nullable>enable</Nullable>` + `TreatWarningsAsErrors`** no .NET; **`mypy`** no ETL Python. O contrato de dados do SSE deve ter uma definição única e versionada, gerada ou espelhada entre C# e TypeScript. |
-| RNF-14 | Arquitetura em camadas desacopladas — *provider* (RPC) → *service* (regras) → *repository* (dados) → *transport* (SSE/HTTP) — permitindo trocar provedor, banco ou transporte sem reescrever a lógica de negócio. |
+| RNF-14 | Arquitetura em camadas desacopladas — *provider* (RPC) → *service* (regras) → *repository* (dados) → *transport* (SSE/HTTP) — permitindo trocar provedor, banco ou transporte sem reescrever a lógica de negócio. **No .NET essas camadas são realizadas sobre a estrutura MVC pedida pelo parceiro**; o mapeamento está em [09 §2](./09-arquitetura-e-stack.md). |
+| RNF-31 | O backend deve seguir **estrutura MVC** (ASP.NET Core), com controllers isentos de lógica de negócio: toda regra vive na camada de *service* (RN-09). Definido pelo parceiro em 18/08 ([doc 10](./10-registro-respostas-parceiro.md)). |
 | RNF-30 | O caminho quente (.NET → SSE → React) não deve depender de ClickHouse nem do ETL Python: com o banco fora do ar, o painel ao vivo continua funcionando, perdendo apenas as visões históricas. |
 | RNF-15 | Testes unitários automatizados para as regras de cálculo (RN-01 a RN-06), com blocos mockados, incluindo casos de borda (base fee no mínimo, bloco cheio, bloco vazio). |
 | RNF-16 | Lint e formatação padronizados (ESLint + Prettier) e mensagens de commit convencionais. |
 | RNF-17 | README com instruções de instalação, execução e descrição da arquitetura; endpoints documentados. |
 | RNF-18 | Logs estruturados (nível, timestamp, contexto) para conexão RPC, blocos processados e erros. |
 | RNF-25 | A escrita no banco deve ocorrer **fora do caminho crítico** do SSE: o evento vai aos clientes primeiro; a persistência acontece de forma assíncrona/em lote. |
-| RNF-27 | O acesso a dados deve ficar atrás de uma interface de *repository*, permitindo trocar SQLite por PostgreSQL sem alterar a camada de serviço. |
-| RNF-28 | Migrações de schema devem ser versionadas em arquivos no repositório, nunca aplicadas manualmente no banco. |
-| RNF-29 | Com SQLite, habilitar modo **WAL** para não bloquear leituras durante escritas. |
+| RNF-27 | O acesso a dados deve ficar atrás de uma interface de *repository*, permitindo trocar a instância de ClickHouse (Docker local ↔ instância da Alphractal) por configuração, sem alterar a camada de serviço. |
+| RNF-28 | Migrações de schema devem ser versionadas em arquivos no repositório, nunca aplicadas manualmente no banco. As *materialized views* precisam ser criadas **antes** da primeira carga (ver R-17). |
+| ~~RNF-29~~ | ~~Com SQLite, habilitar modo **WAL**~~ — **cancelado**. Era específico do SQLite, revogado pela adoção do ClickHouse. O problema equivalente aqui é a inserção em lote (R-14, [04 §1.1](./04-persistencia-banco-de-dados.md)). |
 
 ## 5. Usabilidade e acessibilidade
 

@@ -76,7 +76,7 @@ Premissas: 1 bloco a cada ~12 s (7.200 blocos/dia); Ethereum processando ~15 tra
 | **RF-07 (mempool) permanece [C]** | Inviável no free tier. Só reconsiderar se o parceiro fornecer chave de plano pago (dúvida nº 1). |
 | **Uma única chave, um único processo ingerindo** | A cota é **por conta**, não por app. Dois desenvolvedores rodando o backend em paralelo dobram o consumo e estouram o mês. |
 | **Não deixar o backend rodando 24/7 em máquina de dev** | ~52% da cota vai só em `newHeads`. Ligar sob demanda durante o desenvolvimento. |
-| **D-06 é barato, ao contrário do que parecia** | `eth_getBlockByNumber` custa 20 CU fixos por chamada, independentemente do tamanho da resposta. Atribuição de picos consome só ~14% da cota. |
+| **D-06 é barato, mas não gratuito** | `eth_getBlockByNumber` custa 20 CU fixos por chamada, independentemente do tamanho da resposta — bem mais barato do que parecia. Ainda assim, seus ~14% empurram o total para 73% e derrubam a margem do RNF-05 abaixo dos 30% exigidos. Ver §5. |
 | **D-05 (L1 vs L2) multiplica o consumo** | Cada rede adicional é outro `newHeads`. Quatro redes ≈ 62 M CU/mês → **exige plano pago**. |
 | **Plano pago é barato se necessário** | PAYG a US$ 0,45/M CU: o MVP inteiro rodando 24/7 sai por **~US$ 10/mês**. Vale mencionar ao parceiro — é um custo desprezível para eles e destrava mempool e multi-rede. |
 
@@ -85,6 +85,15 @@ Premissas: 1 bloco a cada ~12 s (7.200 blocos/dia); Ethereum processando ~15 tra
 ## 5. Requisito derivado
 
 **RNF-05 (revisado):** o consumo de CU deve caber no plano contratado, com margem de segurança de pelo menos 30%. O sistema deve registrar em log o volume estimado consumido por dia, e o consumo real deve ser conferido no painel do provedor **ao fim da semana 2**, antes de qualquer decisão sobre itens do backlog que aumentem o tráfego RPC.
+
+### Onde o próprio requisito aperta ⚠️
+
+| Escopo | CU/mês | Consumo | Margem | RNF-05 |
+|---|---|---|---|---|
+| MVP obrigatório (`newHeads` + `eth_feeHistory`) | ~17,7 M | 59% | **41%** | ✅ atende |
+| MVP + D-06 (`eth_getBlockByNumber`) | ~22,0 M | 73% | **27%** | ❌ viola |
+
+O número de 73% que circula neste documento **já inclui D-06**. O MVP puro cabe com folga; é o diferencial de atribuição de picos que estoura a margem. Consequência prática: **D-06 só é aprovado se houver plano pago, ou se o ingestor não rodar 24/7** durante o desenvolvimento. Decidir ao fim da semana 2, com consumo medido — não estimado.
 
 ---
 

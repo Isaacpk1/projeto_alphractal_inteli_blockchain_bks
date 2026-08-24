@@ -3,7 +3,9 @@
 # 05 — Backlog de Diferenciais (D)
 
 > Itens **além do escopo mínimo do TAP**, priorizados por relação valor/esforço.
-> Nada aqui deve ser iniciado antes de todos os RF **[M]** estarem fechados.
+> Nada aqui deve ser iniciado antes de todos os 22 RF **[M]** estarem fechados.
+
+> ✅ **Direção validada pelo parceiro.** Perguntados sobre análise de negócio, responderam *"queremos, pode fazer aê"*, e sobre indicadores obrigatórios, *"faz aê, sejam livres"* (18/08/2026 — [doc 10](./10-registro-respostas-parceiro.md)). Este backlog deixa de ser aposta do time e passa a ser resposta a um pedido explícito. A ressalva de sempre: *"depois a gente manda alguma coisa"* — pode chegar uma lista deles, e ela tem precedência.
 
 ## Critério de seleção
 
@@ -81,7 +83,7 @@ Matriz 7 × 24 com a base fee média histórica. Traduz direto em *"execute ter�
 - [ ] Escala de cor sequencial acessível, com valor numérico legível no tooltip (RNF-19).
 - [ ] Destaca a célula correspondente ao momento atual.
 - [ ] Indica claramente o volume de dados por trás (ex.: "baseado em 12 dias de coleta") — sem isso o heatmap mente nas primeiras semanas.
-- [ ] **Dependência:** requer ≥ 7 dias de dados acumulados, ou seed histórico via RPC/API externa.
+- [ ] **Dependência:** requer ≥ 7 dias de dados acumulados, ou seed histórico via RPC/API externa. Alimentado por `fee_stats_daily` para a visão de longo prazo — a granularidade diária que o parceiro pediu.
 
 ### D-05 · Comparativo L1 vs L2 — 2,5 dias · impacto alto
 
@@ -106,7 +108,7 @@ Isso é inteligência de mercado — literalmente o negócio da Alphractal. É o
 - [ ] Agrega o gas consumido por endereço de destino nas transações do bloco.
 - [ ] Resolve o nome do contrato quando possível (fonte de labels a definir); *fallback* para endereço abreviado.
 - [ ] Marcador clicável no gráfico com o detalhe do evento.
-- [ ] **Risco:** exige `eth_getBlockByNumber` com transações completas — verificar impacto no consumo do plano RPC (RNF-05) antes de commitar.
+- [ ] **Orçamento RPC — verificado.** `eth_getBlockByNumber` custa 20 CU fixos por chamada (não por byte), o que torna D-06 **muito mais barato do que parecia**: ~4,3 M CU/mês, ~14% da cota. Porém empurra o total do MVP de 59% para 73%, derrubando a margem do RNF-05 abaixo dos 30% exigidos. **Aprovar só com plano pago, ou com o ingestor não rodando 24/7.** Ver [08 §5](./08-orcamento-rpc.md).
 
 ---
 
@@ -136,5 +138,8 @@ Isso é inteligência de mercado — literalmente o negócio da Alphractal. É o
 |---|---|
 | Semanas 1–3 | Todos os RF **[M]** e **[S]** — nada deste backlog |
 | Semana 3 (fim) | D-07 e D-03 (baratos, alto retorno na narrativa) |
-| Semana 4 | D-01 e D-02 se o MVP estiver estável; D-09 como seguro para a demo |
+| Semana 4, **até 01/10** | D-01 e D-02 **somente se** todos os *Must* estiverem fechados e estáveis. D-09 como seguro para a demo |
+| Semana 4, **de 01/10 a 05/10** | **Congelamento de código.** Estabilização, ensaio da demo, README. Nenhuma feature nova |
 | Pós-projeto | Onda 2 e 3, como proposta de continuidade ao parceiro |
+
+> **Conflito resolvido.** O risco **R-12** determina tratar a semana 4 como estabilização, não desenvolvimento — o que contradizia a linha "Semana 4: D-01 e D-02" desta tabela. A regra acima concilia os dois: existe uma janela curta para diferenciais no início da semana 4, e uma data de congelamento explícita. **Em caso de dúvida, R-12 vence** — um MVP estável vale mais na banca do que um diferencial a mais quebrando ao vivo.

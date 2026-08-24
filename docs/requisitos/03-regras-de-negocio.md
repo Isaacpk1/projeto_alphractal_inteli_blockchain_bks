@@ -18,7 +18,7 @@ O `baseFee` é definido pelo protocolo e **queimado**; a *priority fee* (gorjeta
 
 ### RN-02 — Faixas de velocidade
 
-Derivadas dos percentis de *priority fee* retornados por `eth_feeHistory` sobre os últimos N blocos:
+Derivadas dos percentis de *priority fee* retornados por `eth_feeHistory` sobre os últimos **`N_fee` = 20** blocos:
 
 | Faixa | Percentil | Expectativa |
 |---|---|---|
@@ -26,7 +26,9 @@ Derivadas dos percentis de *priority fee* retornados por `eth_feeHistory` sobre 
 | Padrão | p50 | próximos blocos |
 | Rápido | p90 | próximo bloco |
 
-*(percentis e janela N a validar com o parceiro — dúvida nº 8)*
+**Janela:** `N_fee = 20 blocos` (≈4 min) — responde rápido a mudanças sem oscilar a cada bloco isolado.
+
+*Definido pelo time: o parceiro deu liberdade explícita nas faixas ("sejam livres", 18/08 — [doc 10](./10-registro-respostas-parceiro.md)). Percentis e janela são **configuráveis**, porque o parceiro sinalizou que "depois a gente manda alguma coisa".*
 
 ### RN-03 — Conversão para USD
 
@@ -58,7 +60,7 @@ Constantes de configuração, documentadas e ajustáveis sem alterar código de 
 | Swap em DEX | ~150.000 |
 | Mint de NFT | ~85.000 |
 
-*(valores a validar com o parceiro — dúvida nº 7)*
+*Definido pelo time, com liberdade concedida pelo parceiro em 18/08 ([doc 10](./10-registro-respostas-parceiro.md)). Valores em arquivo de configuração — ajustáveis quando a Alphractal enviar os tipos de transação que o usuário institucional deles mais executa.*
 
 ---
 
@@ -66,7 +68,7 @@ Constantes de configuração, documentadas e ajustáveis sem alterar código de 
 
 ### RN-04 — Índice de congestionamento
 
-Compara a `baseFee` atual com a média móvel dos últimos N blocos:
+Compara a `baseFee` atual com a média móvel dos últimos **`N_cong = 100` blocos** (≈20 min):
 
 | Faixa | Relação com a média | Rótulo |
 |---|---|---|
@@ -75,7 +77,7 @@ Compara a `baseFee` atual com a média móvel dos últimos N blocos:
 | 130–200% | acima | Alto |
 | > 200% | muito acima | Extremo |
 
-**Procedência:** o termo *"saúde da rede"* vem literalmente do TAP — *"uma métrica de 'saúde' atual da rede"* (seção 2, Problema). O **método de cálculo e as faixas acima não vêm do TAP**: são proposta nossa, preenchendo uma lacuna. Daí a marcação *a validar* (dúvida nº 6).
+**Procedência:** o termo *"saúde da rede"* vem literalmente do TAP — *"uma métrica de 'saúde' atual da rede"* (seção 2, Problema). O **método de cálculo e as faixas acima não vêm do TAP**: são definição do time. Em 18/08/2026 o parceiro concedeu liberdade explícita sobre indicadores (*"faz aê, sejam livres"* — [doc 10](./10-registro-respostas-parceiro.md)), encerrando a dúvida nº 6. As faixas ficam em configuração, não em código.
 
 **Limitação conhecida desta regra.** Por comparar com uma média móvel curta, ela mede **variação**, não **nível**. Num período sustentado de taxas altas, a média móvel acompanha a subida e o indicador volta a marcar "Normal" — mesmo com o gas historicamente caro. É um ponto cego real, e o diferencial **D-02** (percentil histórico) existe para cobri-lo. Os dois são **complementares, não substitutos**: esta regra responde *"está subindo agora?"*; o percentil responde *"está caro em termos históricos?"*.
 
@@ -106,11 +108,21 @@ Se chegar um bloco com número **menor ou igual** ao último processado, ele **s
 
 ### RN-09 — Fonte única de verdade
 
-Todo cálculo financeiro ocorre no **backend**. O frontend não replica fórmula alguma — recebe valores prontos e apenas formata. Isso garante que backend e painel nunca divirjam.
+Todo cálculo financeiro ocorre no **backend**, na camada de *Service* (ver o mapeamento MVC em [09 §2](./09-arquitetura-e-stack.md)). O frontend não replica fórmula alguma — recebe valores prontos e apenas formata. Isso garante que backend e painel nunca divirjam, e que o controller permaneça sem lógica de negócio.
 
 ### RN-10 — Janela de histórico em memória
 
-Manter os últimos **~300 blocos** (≈1 hora de rede). Dados mais antigos saem da memória e permanecem apenas no banco.
+Manter os últimos **300 blocos** (≈1 hora de rede). Dados mais antigos saem da memória e permanecem apenas no banco.
+
+**As três janelas do sistema**, todas contidas no buffer de 300 blocos e todas configuráveis:
+
+| Constante | Valor | Usada em | Responde a |
+|---|---|---|---|
+| `N_fee` | **20** blocos (≈4 min) | RN-02, RF-03 | percentis de *priority fee* |
+| `N_cong` | **100** blocos (≈20 min) | RN-04, RF-12 | média móvel de congestionamento |
+| `N_buffer` | **300** blocos (≈1 h) | RN-10, RF-14 | gráfico do painel |
+
+> Antes desta versão, cinco requisitos (RF-03, RF-12, RF-14, RN-02, RN-04) diziam apenas *"os últimos N blocos"* sem que N fosse definido em lugar algum. Os três valores acima são a definição única.
 
 ### RN-13 — Cliente novo recebe estado imediato
 
@@ -122,7 +134,15 @@ Ao conectar no SSE, o cliente recebe o último snapshot conhecido **antes** de e
 
 ### RN-15 — Retenção
 
-Dados bloco a bloco por **7 dias** (configurável); agregados horários mantidos indefinidamente.
+| Dado | Retenção |
+|---|---|
+| Blocos brutos (tabela `blocks`) | **30 dias**, por `TTL` declarativo |
+| Agregados horários (`fee_stats_hourly`) | indefinidamente |
+| Agregados diários (`fee_stats_daily`) | indefinidamente |
+
+**Por que 30 dias e não 7:** o D-02 exige percentil sobre janela de 30 dias, e o TAP não impõe limite de armazenamento. A 216 mil linhas/mês, 30 dias de dado bruto é irrelevante em disco. A versão anterior desta regra dizia 7 dias enquanto o DDL usava 90 e a consulta do D-02 usava 30 — três valores para a mesma decisão. **Valor único: 30 dias.**
+
+O parceiro respondeu *"time frame indeterminado, tão aí pra ajudar a gente a definir"* (18/08) — logo, esta é definição nossa e revisável.
 
 ---
 
