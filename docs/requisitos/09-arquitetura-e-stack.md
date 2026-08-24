@@ -2,16 +2,18 @@
 
 # 09 — Arquitetura e Stack
 
-> **Stack definida pela Alphractal**, não pelo time. O TAP deixa a stack livre (*"Frontend: Livre, recomenda-se React + Vite"*, *"Backend: Livre, recomenda-se Node.js"*), então não há conflito com o documento — as recomendações do TAP eram sugestões, não requisitos.
+> **Stack definida pela Alphractal**, não pelo time — em 18/08/2026, ver [10 — Registro de Respostas do Parceiro](./10-registro-respostas-parceiro.md). O TAP deixa a stack livre (*"Frontend: Livre, recomenda-se React + Vite"*, *"Backend: Livre, recomenda-se Node.js"*), então não há conflito com o documento — as recomendações do TAP eram sugestões, não requisitos.
 
 | Camada | Tecnologia |
 |---|---|
 | Frontend | **React** |
-| Backend / API | **.NET** (ASP.NET Core) |
+| Backend / API | **.NET** (ASP.NET Core), **estrutura MVC** |
 | ETL / tratamento de dados | **Python** |
 | Banco analítico | **ClickHouse** |
 
 Como é a infraestrutura real do parceiro, o critério deixa de ser "o que é mais rápido de construir" e passa a ser **"o que eles conseguem absorver"**. Isso aumenta bastante a chance de o código sobreviver ao fim do projeto — que é um dos benefícios declarados no TAP.
+
+**Precedente do parceiro.** A Alphractal já opera um pipeline próprio no padrão *ingestão on-chain → tratamento dos dados → API → front-end* (hoje aplicado a Dogecoin). A divisão em dois caminhos descrita abaixo **não é proposta nossa — é o padrão interno deles**, aplicado ao Ethereum. Isso encerra as dúvidas 24 e 25.
 
 ---
 
@@ -61,7 +63,7 @@ Isso reforça a **RN-14** (o banco não serve tempo real), que já estava na esp
 | Regras de negócio | RN-01 a RN-05, usando `System.Numerics.BigInteger` |
 | Janela quente | Ring buffer em memória, 300 blocos (RN-10) |
 | Fan-out para N clientes | `System.Threading.Channels.Channel<T>` — um produtor (RPC), N consumidores (SSE) |
-| Transporte ao painel | SSE via minimal API retornando `IAsyncEnumerable<T>` com `Content-Type: text/event-stream` |
+| Transporte ao painel | SSE em **controller MVC**, action retornando `IAsyncEnumerable<T>` com `Content-Type: text/event-stream` |
 | Consultas históricas | Leitura no ClickHouse via `ClickHouse.Client` |
 | Spool para o ETL | Escrita append-only de NDJSON, fora do caminho crítico (RNF-25) |
 
@@ -79,6 +81,20 @@ Isso reforça a **RN-14** (o banco não serve tempo real), que já estava na esp
 | Validação e qualidade | Detectar lacunas de blocos, reconciliar contra o RPC |
 
 **Python fica fora do caminho crítico por decisão de arquitetura**, não por limitação da linguagem.
+
+### Estrutura MVC — como as camadas se encaixam
+
+O parceiro pediu **estrutura MVC** no .NET. Isso não conflita com a arquitetura em camadas da **RNF-14**: MVC define como o *transporte* é organizado, e as camadas definem para onde vai a lógica. O mapeamento é direto:
+
+| Camada da RNF-14 | Onde vive em MVC | Regra |
+|---|---|---|
+| *Transport* | `Controllers/` — `FeesController` (SSE, snapshot, histórico), `HealthController` | Nenhum cálculo. Só orquestra e serializa |
+| *Service* | `Services/` — regras RN-01 a RN-05 | Onde vive **toda** a matemática (RN-09) |
+| *Repository* | `Repositories/` — leitura no ClickHouse, spool NDJSON | Trocável sem tocar em Service |
+| *Provider* | `Providers/` — Nethereum, cotação ETH/USD | Trocável sem tocar em Service |
+| *Model* | `Models/` — DTOs do contrato SSE, entidades de bloco | Fonte única do contrato (RNF-13) |
+
+A ingestão contínua não é um controller: vive em `BackgroundServices/BlockIngestionService`, registrado como `IHostedService`. O "V" de MVC é servido pelo **React** — o .NET não renderiza views, expõe JSON e SSE. Vale dizer isso explicitamente na banca, porque "MVC sem view" é pergunta previsível.
 
 ### Handoff .NET → Python: spool de arquivos
 
@@ -106,7 +122,7 @@ Detalhamento completo em [04 — Persistência](./04-persistencia-banco-de-dados
 **Em compensação, três coisas ficam melhores:**
 
 - **Tipos nativos para wei** (`UInt64`, `UInt256`) — some a gambiarra de guardar wei como `TEXT`.
-- **Retenção declarativa** — `TTL block_time + INTERVAL 90 DAY` na definição da tabela. A RN-15 vira configuração, não job.
+- **Retenção declarativa** — `TTL block_time + INTERVAL 30 DAY` na definição da tabela. A RN-15 vira configuração, não job.
 - **Agregação declarativa** — *materialized views* com `AggregatingMergeTree` mantêm os rollups horários automaticamente. O RF-37 deixa de ser código. E `quantile()` nativo torna **D-02 (percentil) e D-04 (heatmap) quase triviais** — eram os diferenciais mais caros da lista.
 
 **Honestidade sobre dimensionamento:** 216 mil linhas por mês. ClickHouse é projetado para bilhões. Tecnicamente é desproporcional — mas o critério aqui é alinhamento com a infraestrutura do parceiro, e o ganho em D-02/D-04 é real.
@@ -159,7 +175,7 @@ Chamar de warehouse seria impreciso em cinco de cinco critérios — e é o tipo
 
 ### Por que "real-time analytics" também merece ressalva
 
-ClickHouse se posiciona como *real-time analytics database*, e o padrão de uso aqui é exatamente o canônico dessa categoria: **analytics voltado ao usuário final** (user-facing analytics), com alta concorrência e consultas de sub-segundo — não relatório interno.
+ClickHouse se posiciona como *real-time analytics database*, e o padrão de uso aqui é o canônico da categoria: **analytics voltado ao usuário final** (user-facing analytics), com alta concorrência e consultas de sub-segundo — não relatório interno.
 
 Mas "tempo real" é ambíguo, e vale separar as duas coisas:
 
@@ -168,36 +184,51 @@ Mas "tempo real" é ambíguo, e vale separar as duas coisas:
 | **Latência de consulta** | Sub-segundo ✅ — é real-time analytics de fato |
 | **Frescor do dado** | ~1 minuto ⚠️ — micro-lote, não streaming |
 
-Então o termo honesto é **analytics em tempo quase real** (*near real-time*). E isso é deliberado: o dado verdadeiramente ao vivo — o que atende o RNF-01 de 2 segundos — nunca passa pelo ClickHouse. Ele vive na memória do .NET.
+O termo honesto é **analytics em tempo quase real** (*near real-time*). E isso é deliberado: o dado verdadeiramente ao vivo — o que atende o RNF-01 de 2 segundos — nunca passa pelo ClickHouse. Ele vive na memória do .NET (§1).
 
 ### O nome da arquitetura completa
 
-O desenho de dois caminhos é uma **arquitetura Lambda** simplificada:
+A divisão em dois caminhos é uma **arquitetura Lambda** simplificada:
 
 | Camada Lambda | Nosso componente | Responde |
 |---|---|---|
 | **Speed layer** (velocidade) | Janela de 300 blocos em memória no .NET | "o que está acontecendo agora?" |
 | **Batch layer** (lote) | ClickHouse + materialized views | "o que aconteceu nos últimos 30 dias?" |
-| **Serving layer** (serviço) | API .NET, que consulta as duas | unifica para o painel |
+| **Serving layer** (serviço) | API .NET (`Controllers/`), que consulta as duas | unifica para o painel |
 
-É a resposta completa para a banca: *ClickHouse é a batch/serving layer de uma arquitetura Lambda, operando como base de real-time analytics para o caminho frio.*
+Resposta completa para a banca: *ClickHouse é a batch/serving layer de uma arquitetura Lambda, operando como base de real-time analytics para o caminho frio.*
 
-### Uma ressalva de escopo
+### Ressalva de escopo — depende de qual instância
 
-Se a Alphractal fornecer **a instância de produção deles** (dúvida nº 21), a classificação muda de ponto de vista: para eles, aquela instância provavelmente **é** o repositório analítico central da plataforma — reunindo dados on-chain, métricas fundamentais e sentimento, conforme o TAP descreve. Nesse caso nossa tabela é **uma fonte que alimenta o armazém deles**, não um armazém em si.
+A classificação muda conforme a decisão da **§8**:
 
-Vale confirmar isso antes de escrever a classificação no relatório final: a resposta correta depende de a instância ser nossa ou deles.
+| Cenário | Como classificar |
+|---|---|
+| **ClickHouse local via Docker** (decisão provisória adotada) | Nossa tabela **é** a camada de real-time analytics do módulo |
+| **Instância de produção da Alphractal** | Aquela instância provavelmente **é** o repositório analítico central da plataforma — dados on-chain, métricas fundamentais e sentimento, como o TAP descreve. Nesse caso nossa tabela é **uma fonte que alimenta o armazém deles**, não um armazém em si |
+
+Confirmar na dúvida 21 antes de escrever a classificação no relatório final — a resposta correta depende de a instância ser nossa ou deles.
 
 ---
 
-## 7. Novas dúvidas para o parceiro
+## 7. Dúvidas relacionadas a esta seção
 
-**21.** Vocês fornecem uma instância de **ClickHouse** para o protótipo, ou subimos local via Docker? Se for a de vocês, há schema/convenção de nomes a seguir?
+> A numeração canônica é a do [06 — Dúvidas](./06-duvidas-kickoff.md). Esta seção apenas aponta para lá.
 
-**22.** Qual versão de **.NET** vocês usam? Há template de projeto, convenções ou bibliotecas internas que devemos seguir para o código ser absorvível?
+| # | Assunto | Estado |
+|---|---|---|
+| 12 | SSE vs **SignalR** — o TAP recomenda SSE; SignalR é o idiomático em .NET | Aberta |
+| 21 | Instância de **ClickHouse**: deles ou Docker local? | Aberta — ver §8 (afeta também a classificação em §6) |
+| 22 | Versão e convenções de **.NET** / template MVC | Parcial — MVC confirmado, resto aberto |
+| 23 | **Nethereum**: já usam? Há código de referência? | Aberta — maior risco de cronograma (R-13) |
+| 24 | Padrão de **ETL em Python** (orquestrador, convenções) | Encerrada — pipeline próprio, ver §1 |
+| 25 | Divisão **.NET × Python** | Encerrada — confirma esta arquitetura |
+| 28 | Convenções específicas de MVC (pastas, DI, validação) | Nova |
 
-**23.** Vocês já usam **Nethereum** internamente, ou seria a primeira vez? Existe código de ingestão on-chain em .NET que possamos usar como referência?
+## 8. Instância de ClickHouse — decisão provisória
 
-**24.** O TAP recomenda **SSE**, mas o padrão nativo do .NET para tempo real é o **SignalR**. Qual vocês preferem? *(atualiza a dúvida nº 12)*
+O parceiro disse *"salva no banco deles, ClickHouse"*. Gravar diretamente na instância de produção da Alphractal **colide com a restrição do TAP** (*"sem integração direta em produção"*, *"protótipo operando em ambiente isolado"*).
 
-**25.** Existe pipeline de ETL em Python já padronizado do lado de vocês (orquestrador, convenções de projeto, biblioteca comum)?
+**Decisão adotada até o kick-off:** ClickHouse **local via Docker**, com schema espelhando o padrão de nomes deles. Ao fim do projeto, a carga na instância real é uma troca de string de conexão — que fica a critério da Alphractal executar.
+
+Isso preserva a restrição contratual sem perder o alinhamento. Confirmar na **dúvida 21**.
