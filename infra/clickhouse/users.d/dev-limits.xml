@@ -1,0 +1,17 @@
+<clickhouse>
+    <profiles>
+        <default>
+            <!-- trava de segurança: uma query mal escrita da API não pode
+                 consumir a máquina inteira nem ficar pendurada -->
+            <max_memory_usage>2000000000</max_memory_usage>   <!-- 2 GB -->
+            <max_execution_time>30</max_execution_time>       <!-- segundos -->
+            <max_result_rows>100000</max_result_rows>
+            <result_overflow_mode>throw</result_overflow_mode>
+
+            <!-- o painel lê agregados pequenos; se uma query varrer muito,
+                 é sinal de que faltou rollup, não de que falta hardware -->
+            <max_bytes_to_read>10000000000</max_bytes_to_read>
+            <readonly>0</readonly>
+        </default>
+    </profiles>
+</clickhouse>

@@ -1,0 +1,33 @@
+# ── Segredos ────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── .NET ────────────────────────────────────────────────────
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# ── Python ──────────────────────────────────────────────────
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# ── Node / React ────────────────────────────────────────────
+node_modules/
+dist/
+.vite/
+
+# ── Dados locais (nunca versionar) ──────────────────────────
+infra/clickhouse/data/
+spool/
+
+# ── Lixo de ferramenta ──────────────────────────────────────
+docs/_lixo_git/
+.DS_Store
+Thumbs.db

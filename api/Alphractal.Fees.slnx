@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Alphractal.Fees.Api/Alphractal.Fees.Api.csproj" />
+  </Folder>
+</Solution>

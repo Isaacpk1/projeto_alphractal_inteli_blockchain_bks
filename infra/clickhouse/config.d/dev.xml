@@ -1,0 +1,27 @@
+<clickhouse>
+    <!-- Perfil de MÁQUINA DE DESENVOLVIMENTO.
+         O default do ClickHouse assume um servidor dedicado e come RAM à vontade;
+         num notebook rodando também React, .NET e Docker isso derruba o resto. -->
+
+    <logger>
+        <level>information</level>
+        <size>100M</size>
+        <count>3</count>
+    </logger>
+
+    <!-- no máximo 60% da RAM do container -->
+    <max_server_memory_usage_to_ram_ratio>0.6</max_server_memory_usage_to_ram_ratio>
+
+    <mark_cache_size>536870912</mark_cache_size>          <!-- 512 MB -->
+    <uncompressed_cache_size>1073741824</uncompressed_cache_size>  <!-- 1 GB -->
+
+    <listen_host>0.0.0.0</listen_host>
+
+    <!-- histórico de queries: útil para achar query lenta da API no dev -->
+    <query_log>
+        <database>system</database>
+        <table>query_log</table>
+        <ttl>event_date + INTERVAL 7 DAY DELETE</ttl>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </query_log>
+</clickhouse>

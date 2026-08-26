@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>Alphractal.Fees.Api</RootNamespace>
+    <AssemblyName>Alphractal.Fees.Api</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    Nethereum (ingestao RPC) e ClickHouse.Client (consultas historicas)
+    entram aqui quando o desenvolvimento comecar. Ver docs/requisitos/09.
+  -->
+
+</Project>

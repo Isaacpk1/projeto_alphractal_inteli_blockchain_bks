@@ -52,6 +52,23 @@ O painel ao vivo precisa ser demonstrável **sem** o caminho frio no ar. Se o cr
 
 Stack definida pela Alphractal — é a infraestrutura de produção deles, o que aumenta a chance de o código ser absorvido ao fim do projeto.
 
+## Estrutura do repositório
+
+Quatro pastas de código, uma de documentação. Um dono por pasta — PR que mexe em
+pasta de outro dono precisa do aval dele.
+
+| Pasta | Dono | O que é |
+|---|---|---|
+| [`api/`](./api/README.md) | back-end | API .NET 10, estrutura MVC. Ingestão via Nethereum, cálculo das regras, SSE para o painel. É o caminho quente inteiro. |
+| [`etl/`](./etl/README.md) | ingestão | Python. Lê o spool NDJSON da API, trata e carrega no ClickHouse. Caminho frio. |
+| [`infra/`](./infra/README.md) | infra | ClickHouse em Docker + schema em três camadas. Única fonte do schema — nenhum `CREATE TABLE` mora fora daqui. |
+| [`web/`](./web/README.md) | front | Painel React 19 + TypeScript strict + Vite. Consome SSE e JSON da API. É o "V" do MVC. |
+| [`docs/`](./docs/requisitos/README.md) | todos | Requisitos, regras de negócio, arquitetura e análise de negócios. Muda no mesmo commit do código. |
+
+`api/` e `web/` ficam no mesmo repositório de propósito: `Models/Responses/` e
+`web/src/types/contract.ts` são os dois lados do mesmo contrato, e nenhum
+compilador verifica se eles batem. Mudou um, muda o outro **no mesmo PR**.
+
 ## Documentação
 
 A especificação completa está em **[`docs/requisitos/`](./docs/requisitos/README.md)** — comece pelo índice.
@@ -63,6 +80,7 @@ A especificação completa está em **[`docs/requisitos/`](./docs/requisitos/REA
 | [Regras de negócio](./docs/requisitos/03-regras-de-negocio.md) | RN-01 a RN-16 — as fórmulas |
 | [Arquitetura](./docs/requisitos/09-arquitetura-e-stack.md) | caminho quente vs frio, MVC, linha de corte |
 | [Riscos](./docs/requisitos/07-riscos.md) | R-01 a R-20 |
+| [ADR-001](./docs/adr/001-mvc-sem-views.md) | por que não existe pasta `Views/` |
 | [Orçamento RPC](./docs/requisitos/08-orcamento-rpc.md) | consumo em Compute Units por funcionalidade |
 
 ## Como rodar

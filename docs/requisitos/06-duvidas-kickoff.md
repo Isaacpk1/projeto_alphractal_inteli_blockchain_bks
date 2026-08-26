@@ -113,8 +113,15 @@ A stack — React, .NET com **estrutura MVC**, Python ETL e ClickHouse — foi d
 → *Tensão a resolver:* vocês disseram *"salva no banco deles"*, mas o TAP proíbe integração no ambiente de produção e caracteriza a entrega como protótipo em **ambiente isolado**. Nossa decisão provisória é **Docker local espelhando o schema de vocês** ([09 §7](./09-arquitetura-e-stack.md)).
 → *Impacta:* [04 — Persistência](./04-persistencia-banco-de-dados.md), RNF-22, R-20.
 
-**22. Versão e convenções de .NET.** 🟡 **Parcial:** MVC confirmado.
-→ *Ainda aberto:* qual versão do .NET vocês usam? Há template de projeto ou bibliotecas internas que devemos seguir?
+**22. Versão e convenções de .NET.** 🔴 **Parcial — e a parte aberta é estrutural.**
+
+→ **Pergunta binária, precisa de resposta em ata:** *"estrutura MVC"* significa
+**(a)** Web API com Controllers, devolvendo JSON, com o **React renderizando a tela**;
+ou **(b)** MVC com Razor, com o **servidor .NET renderizando** a tela? Se for (b), o React sai do escopo?
+→ *Por que é binário:* são dois templates diferentes (`dotnet new webapi` × `dotnet new mvc`) e a diferença não é de pastas — é quem renderiza a interface.
+→ *Nossa decisão provisória:* **(a)**, registrada na [ADR-001](../adr/001-mvc-sem-views.md). O RNF-01 (< 2 s, via SSE) inviabiliza Razor, e o TAP já define React.
+→ *Custo de errar:* se a resposta for (b), o front é refeito. Descoberto na semana 3, compromete o cronograma.
+→ *Ainda aberto também:* qual versão do .NET vocês usam? Há template de projeto ou bibliotecas internas que devemos seguir?
 
 **23. Nethereum.** Vocês já usam a Nethereum internamente, ou seria a primeira vez? Existe código de ingestão on-chain em .NET do lado de vocês que possamos usar como referência?
 → *Por que importa:* é o maior risco de cronograma do projeto (R-13). O ecossistema Web3 documenta quase tudo em `viem`/`ethers`; um exemplo funcionando de vocês economizaria dias.
@@ -135,6 +142,7 @@ A stack — React, .NET com **estrutura MVC**, Python ETL e ClickHouse — foi d
 
 **28. Convenções de MVC.** Dentro da estrutura MVC, vocês seguem alguma organização específica de pastas, injeção de dependência, validação de entrada ou tratamento de erro que devamos espelhar?
 → *Nossa proposta:* `Controllers/` · `Services/` · `Repositories/` · `Providers/` · `Models/` · `BackgroundServices/`, com o mapeamento das camadas da RNF-14 descrito em [09 §2](./09-arquitetura-e-stack.md).
+→ *Depende da 22:* esta pergunta só faz sentido depois de fechado se é Web API ou Razor. Sem `Views/` — ver [ADR-001](../adr/001-mvc-sem-views.md).
 
 **29. Acesso ao pipeline existente.** Podemos ver o pipeline de Dogecoin como referência — mesmo que só a estrutura de pastas e o contrato da API, sem o código proprietário? Reduziria bastante o risco R-13 e aumentaria a chance de vocês absorverem o nosso código depois.
 
@@ -167,11 +175,11 @@ A stack — React, .NET com **estrutura MVC**, Python ETL e ClickHouse — foi d
 | 19 | | | |
 | 20 | | | |
 | 21 | — | | Aberta; decisão provisória: Docker local |
-| 22 | MVC (parcial) | 18/08/26 | Versão e template ainda em aberto |
+| 22 | MVC (parcial) | 18/08/26 | 🔴 Web API × Razor em aberto — decisão provisória em [ADR-001](../adr/001-mvc-sem-views.md) |
 | 23 | — | | Aberta; ver dúvida 29 |
 | 24 | Pipeline próprio: ingestão → tratamento → API → front | 18/08/26 | Confirma [09 §1](./09-arquitetura-e-stack.md) |
 | 25 | Idem | 18/08/26 | Confirma a divisão .NET × Python |
 | 26 | — | | **Bloqueante em aberto** |
 | 27 | — | | **Bloqueante em aberto** |
-| 28 | — | | Aberta |
+| 28 | — | | Aberta; depende da 22 |
 | 29 | — | | Aberta |
