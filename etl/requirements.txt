@@ -1,6 +1,6 @@
-clickhouse-connect>=0.8
+requests>=2.31
 python-dotenv>=1.0
-web3>=7.0          # backfill histórico e reconciliação de lacunas (HTTP, não WS)
+web3>=7.0
 
 # dev
 pytest>=8.0
