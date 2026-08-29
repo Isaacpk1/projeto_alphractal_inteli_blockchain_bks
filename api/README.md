@@ -57,15 +57,85 @@ qual dos dois templates do ASP.NET ele quis dizer.
 
 Cada pasta de `src/Alphractal.Fees.Api/` tem um `README.md` com as regras dela.
 
-## Rodar (quando existir)
+## Estado atual
+
+Implementado: **caminho frio de leitura**. A API conecta no ClickHouse como
+`alphractal_api` (SELECT apenas nas views `v_*`) e expoe:
+
+| Rota | Serve |
+|---|---|
+| `GET /api/v1/health` | liveness do processo |
+| `GET /api/v1/status` | saude da ingestao, de `v_ingestion_status` |
+| `GET /api/v1/fees/latest` | ultimo bloco **do banco** — diagnostico/fallback, nao e o dado ao vivo |
+| `GET /api/v1/fees/mempool` | ultima amostra de mempool |
+| `GET /api/v1/fees/estimates` | estimativa atual por operacao/velocidade |
+| `GET /api/v1/fees/history?granularity=hour\|day&from=&to=&limit=` | serie do rollup |
+| `GET /api/v1/fees/estimates/history?from=&to=&limit=` | custo diario por operacao (D-04) |
+
+Nao implementado: ingestao Nethereum, `Services/` (RN-01 a RN-05), janela de 300
+blocos, SSE e escrita do spool. `/api/v1/fees/stream` e `/snapshot` estao
+reservados em `web/src/lib/api.ts` mas ainda nao existem no servidor.
+
+ClickHouse fora do ar responde **503 com ProblemDetails**, nunca 500: e estado
+previsto: o painel ao vivo nao depende do caminho frio (doc 09 secao 4).
+
+## Rodar
 
 ```bash
-cd api
+# 1. ClickHouse de pe (a primeira subida roda o initdb)
+cd infra && docker compose up -d clickhouse
+
+# 2. segredos: copie o exemplo e preencha a chave da Alchemy
+cd ../api
+copy .env.example .env      # Windows  (Linux/macOS: cp .env.example .env)
+
+# 3. subir
 dotnet run --project src/Alphractal.Fees.Api
 curl http://localhost:5080/api/v1/health
+curl http://localhost:5080/api/v1/status
+curl "http://localhost:5080/api/v1/fees/history?granularity=hour&limit=24"
 ```
 
-O projeto de testes ainda não foi criado — `dotnet new xunit -o tests/Alphractal.Fees.Tests`
+## Segredos
+
+Mesmo mecanismo do `etl/` e do `infra/`: um arquivo `.env` na pasta, ignorado
+pelo Git. Copie de `.env.example`.
+
+**O separador de secao e DOIS underlines** — `Fees__RpcHttpUrl` corresponde a
+`"Fees": { "RpcHttpUrl": ... }` do `appsettings.json`. Um underline so cria uma
+chave diferente e a configuracao nao chega no lugar esperado.
+
+Precedencia, do mais forte para o mais fraco: variavel de ambiente do processo,
+depois `.env`, depois `appsettings.{Environment}.json`, depois `appsettings.json`.
+Container e CI sobrepoem sem editar arquivo nenhum.
+
+O `.env` **nao** vai para o Git (`.gitignore` da raiz), mas ele mora dentro da
+pasta do projeto: nao inclua o arquivo preenchido ao compactar o repositorio para
+entrega, e rotacione a chave se ela vazar.
+
+`Fees__RpcWebSocketUrl` **nao** e obrigatoria no boot: os dois caminhos precisam
+subir separados. Sem ela a API sobe, serve o caminho frio e registra um aviso; a
+ingestao fica desligada.
+
+Sem dado no banco, `/api/v1/fees/latest` responde 404 com a instrucao de rodar o
+backfill. Para popular:
+
+```bash
+cd etl && alphractal-etl backfill --from-block 23000000 --to-block 23000100 --eth-usd 3200.00
+alphractal-etl run
+```
+
+## Convencoes desta pasta
+
+- **SQL nao mora em `.cs`.** Um `.sql` por consulta em `Repositories/Sql/`,
+  embutido no assembly pelo glob do `.csproj` e carregado por `SqlResources`.
+- **Parametro e do lado do servidor** (`{nome:Tipo}`). Nada de concatenacao.
+- **Repositorio devolve `Models/Domain/ColdPath/`**, nao `Models/Responses/`.
+  O controller faz a projecao. E o que permite o front pedir outro formato sem
+  mexer em consulta.
+- **Nenhuma conversao de unidade em C#**: as views ja entregam gwei, ETH e USD.
+
+O projeto de testes ainda nao foi criado — `dotnet new xunit -o tests/Alphractal.Fees.Tests`
 e adicionar ao `Alphractal.Fees.slnx`.
 
 `Directory.Build.props` fixa `net10.0`, `Nullable=enable` e warnings como erro

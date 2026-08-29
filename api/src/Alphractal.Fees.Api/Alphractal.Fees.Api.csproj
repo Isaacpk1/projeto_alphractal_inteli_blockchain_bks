@@ -3,11 +3,64 @@
   <PropertyGroup>
     <RootNamespace>Alphractal.Fees.Api</RootNamespace>
     <AssemblyName>Alphractal.Fees.Api</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!--
+      Sem apphost: o build nao gera .exe proprio e a aplicacao roda pelo
+      dotnet.exe (assinado pela Microsoft). Maquinas com Windows App Control /
+      WDAC bloqueiam o .exe nao assinado que o build produziria, e o erro
+      ("Uma politica de Controle de Aplicativo bloqueou este arquivo") nao tem
+      relacao com o codigo. Isto e o que mantem `dotnet run` funcionando nelas.
+      Nao afeta o container: la a imagem ja executa a DLL.
+    -->
+    <UseAppHost>false</UseAppHost>
+    <!-- CS1591: nem todo membro publico precisa de <summary>. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
-  <!--
-    Nethereum (ingestao RPC) e ClickHouse.Client (consultas historicas)
-    entram aqui quando o desenvolvimento comecar. Ver docs/requisitos/09.
-  -->
+  <ItemGroup>
+    <!--
+      O projeto de testes enxerga os membros internal. Preferido a tornar tudo
+      publico so para testar: helpers como ExtractPrice e Median sao detalhe de
+      implementacao, nao API do modulo.
+    -->
+    <InternalsVisibleTo Include="Alphractal.Fees.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Caminho frio: leitura das views do ClickHouse. -->
+    <PackageReference Include="ClickHouse.Client" Version="7.0.0" />
+
+    <!--
+      Caminho quente. O pacote do WebSocket chama-se WebSocketClient; o nome
+      WebSocketStreamingClient e o NAMESPACE, nao o pacote, e nao existe no NuGet.
+    -->
+    <PackageReference Include="Nethereum.Web3" Version="6.1.0" />
+    <PackageReference Include="Nethereum.JsonRpc.WebSocketClient" Version="6.1.0" />
+    <!--
+      As subscricoes observaveis (EthNewBlockHeadersObservableSubscription) vivem
+      em pacote proprio, fora do Nethereum.RPC. Sem ele o namespace
+      Nethereum.RPC.Reactive nao existe.
+    -->
+    <PackageReference Include="Nethereum.RPC.Reactive" Version="6.1.0" />
+
+    <!--
+      Sobreposicao deliberada. A Nethereum 6.1.0 arrasta Newtonsoft.Json 11.0.2,
+      que tem vulnerabilidade de gravidade ALTA (GHSA-5crp-9r3c-p9vr) — e com
+      TreatWarningsAsErrors o NU1903 reprova o restore, como deve.
+      Declarar a versao corrigida aqui vence a dependencia transitiva: e a
+      correcao, e nao um <NoWarn> escondendo o CVE.
+    -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      As consultas de Repositories/Sql/ viram recurso embutido: SQL nao mora em
+      string dentro do .cs (regra do README daquela pasta). Carregadas por
+      Repositories/Sql/SqlResources.cs.
+    -->
+    <None Remove="Repositories/Sql/*.sql" />
+    <EmbeddedResource Include="Repositories/Sql/*.sql" />
+  </ItemGroup>
 
 </Project>
