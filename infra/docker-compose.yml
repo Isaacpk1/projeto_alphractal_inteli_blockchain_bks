@@ -37,6 +37,62 @@ services:
       retries: 12
       start_period: 20s
 
+  # Prepara o spool ANTES de API e ETL subirem.
+  #
+  # Sem isto: as pastas ready/processing/processed/failed ja existem no
+  # repositorio pertencendo ao root, a API roda como uid 1001, escreve em
+  # pending/ (que ela mesma cria) e falha no move para ready/ com
+  # "Permission denied" — perdendo o lote. A alternativa preguicosa seria rodar
+  # a API como root; isso deixaria arquivos com dono errado na pasta do
+  # desenvolvedor em host Linux.
+  #
+  # Roda uma vez e encerra. Custa ~1 s na subida.
+  spool-init:
+    image: busybox:1.36
+    container_name: alphractal-spool-init
+    command:
+      - sh
+      - -c
+      - "mkdir -p /spool/pending /spool/ready /spool/processing /spool/processed /spool/failed && chown -R 1001:1001 /spool && ls -la /spool"
+    volumes:
+      - ../spool:/spool
+
+  api:
+    build:
+      context: ../api
+    container_name: alphractal-api
+    restart: unless-stopped
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      spool-init:
+        condition: service_completed_successfully
+    # A chave da Alchemy vem do api/.env (ignorado pelo Git). As variaveis em
+    # `environment` abaixo VENCEM o env_file — e o que corrige localhost para o
+    # nome do servico sem precisar de um .env diferente por ambiente.
+    env_file:
+      - ../api/.env
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ClickHouse__BaseUrl: http://clickhouse:8123
+      ClickHouse__Database: ${CLICKHOUSE_DB:-alphractal}
+      ClickHouse__User: ${CLICKHOUSE_API_USER:-alphractal_api}
+      ClickHouse__Password: ${CLICKHOUSE_API_PASSWORD:-api_dev_2026}
+      # Mesmo volume que o ETL drena: e o handoff entre os dois caminhos.
+      Fees__SpoolPath: /spool
+      # Origem do painel React em desenvolvimento.
+      Cors__Origins__0: ${WEB_ORIGIN:-http://localhost:5173}
+    ports:
+      - "${API_PORT:-5080}:8080"
+    volumes:
+      - ../spool:/spool
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/api/v1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   etl:
     build:
       context: ../etl
@@ -45,6 +101,8 @@ services:
     depends_on:
       clickhouse:
         condition: service_healthy
+      spool-init:
+        condition: service_completed_successfully
     environment:
       SPOOL_PATH: /spool
       ETL_POLL_SECONDS: ${ETL_POLL_SECONDS:-10}

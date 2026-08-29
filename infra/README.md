@@ -68,6 +68,25 @@ docker compose exec clickhouse clickhouse-client \
   --query "SELECT count() FROM alphractal.v_eth_fees_1h"
 ```
 
+> **PowerShell:** `<` e operador reservado — a linha do seed falha com
+> `RedirectionNotSupported`. Rode essa linha pelo `cmd`, que passa os bytes crus:
+>
+> ```powershell
+> cmd /c "docker compose exec -T clickhouse clickhouse-client --user alphractal --password alphractal_dev --multiquery < scripts\seed_dev.sql"
+> ```
+>
+> Nao use `Get-Content ... |` no lugar: o `seed_dev.sql` tem acentos e o pipe do
+> PowerShell reencoda o conteudo no caminho.
+
+Sucesso e **silencioso** — o `clickhouse-client` nao imprime nada em `INSERT` que
+funcionou. Confirme com a contagem:
+
+```bash
+docker compose exec clickhouse clickhouse-client \
+  --user alphractal --password alphractal_dev \
+  --query "SELECT count() FROM alphractal.eth_blocks"   # 14400
+```
+
 Os dados do seed são sintéticos e não servem para análise de negócio.
 
 ## Retenção
