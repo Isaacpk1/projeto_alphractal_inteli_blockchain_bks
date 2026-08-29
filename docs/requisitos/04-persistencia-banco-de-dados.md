@@ -23,7 +23,9 @@ de banco mantém o arquivo em `processing/`, retomado no ciclo seguinte.
 ## Tabelas de entrada
 
 - `eth_blocks`: bloco, taxas percentis, gas, burn e preço ETH/USD.
-- `mempool_samples`: amostras sub-bloco.
+- `mempool_samples`: amostras sub-bloco. **A coluna `pending_tx_count` conta as
+  transações do bloco pendente (~100–300), não o tamanho da fila de espera
+  (~10⁵).** Ver R-21 em [07 — Riscos](./07-riscos.md).
 - `fee_estimates`: custo calculado pelo Service .NET por operação/velocidade.
 - `eth_usd_prices`: série do preço utilizado nos cálculos.
 - `ingestion_health`: heartbeat de `ws_listener`, `etl` e `api`.

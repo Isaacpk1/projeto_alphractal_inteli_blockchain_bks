@@ -32,7 +32,11 @@ public sealed record ColdMempoolSample
 {
     public required DateTimeOffset SampledAt { get; init; }
     public required ulong BlockNumber { get; init; }
-    public required uint PendingTxCount { get; init; }
+    /// <summary>
+    /// Transacoes no bloco pendente (coluna <c>pending_tx_count</c>), nao o
+    /// tamanho do mempool. Ver <c>MempoolNowResponse</c>.
+    /// </summary>
+    public required uint PendingBlockTxCount { get; init; }
     public required double BaseFeeGwei { get; init; }
     public required double PrioritySlowGwei { get; init; }
     public required double PriorityStandardGwei { get; init; }

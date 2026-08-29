@@ -44,7 +44,7 @@ public sealed class ClickHouseFeesHistoryRepository : IFeesHistoryRepository
         {
             SampledAt = reader.AsUtc("sampled_at"),
             BlockNumber = reader.AsUInt64("block_number"),
-            PendingTxCount = reader.AsUInt32("pending_tx_count"),
+            PendingBlockTxCount = reader.AsUInt32("pending_tx_count"),
             BaseFeeGwei = reader.AsDouble("base_fee_gwei"),
             PrioritySlowGwei = reader.AsDouble("priority_slow_gwei"),
             PriorityStandardGwei = reader.AsDouble("priority_standard_gwei"),

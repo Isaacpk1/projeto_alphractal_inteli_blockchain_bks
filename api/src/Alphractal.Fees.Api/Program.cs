@@ -67,8 +67,10 @@ builder.Services.AddSingleton<IEthPriceProvider, HttpEthPriceProvider>();
 builder.Services.AddSingleton<FeeCalculator>();
 builder.Services.AddSingleton<SnapshotBuilder>();
 builder.Services.AddSingleton<FeesBroadcaster>();
+builder.Services.AddSingleton<PriorityFeeState>();
 builder.Services.AddSingleton<ISpoolWriter, NdjsonSpoolWriter>();
 builder.Services.AddHostedService<BlockIngestionService>();
+builder.Services.AddHostedService<MempoolSamplingService>();
 
 // Caminho quente completo: newHeads → calculo → SSE → spool.
 // Falta: reconciliacao de reorg no spool e amostragem de mempool.

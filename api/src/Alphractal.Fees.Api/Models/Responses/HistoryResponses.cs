@@ -32,11 +32,27 @@ public sealed record LatestBlockResponse
     public required string Source { get; init; }
 }
 
+/// <summary>
+/// Amostra sub-bloco. <b>Nao e o tamanho do mempool.</b>
+/// </summary>
+/// <remarks>
+/// <see cref="PendingBlockTxCount"/> conta as transacoes que o no ja selecionou
+/// para o proximo bloco (tipicamente 100–300), nao a fila inteira de espera
+/// (~10^5). O tamanho real do mempool exigiria <c>txpool_status</c>, metodo do
+/// Geth que a Alchemy nao expoe.
+/// <para>
+/// O rotulo importa: um painel dizendo "Mempool: 114 tx" seria falso por tres
+/// ordens de grandeza. Como sinal de pressao sub-bloco o dado e legitimo — e a
+/// unica metrica do sistema que se move entre blocos.
+/// </para>
+/// </remarks>
 public sealed record MempoolNowResponse
 {
     public required DateTimeOffset SampledAtUtc { get; init; }
     public required ulong BlockNumber { get; init; }
-    public required uint PendingTxCount { get; init; }
+
+    /// <summary>Transacoes no bloco pendente. Nao confundir com o tamanho do mempool.</summary>
+    public required uint PendingBlockTxCount { get; init; }
     public required double BaseFeeGwei { get; init; }
     public required double PrioritySlowGwei { get; init; }
     public required double PriorityStandardGwei { get; init; }

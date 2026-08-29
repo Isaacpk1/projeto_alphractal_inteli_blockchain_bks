@@ -1,7 +1,7 @@
 # ADR-001 — Estrutura MVC sem pasta `Views/`
 
-- **Status:** aceita provisoriamente · **a confirmar em ata no kick-off de 14/09/2026**
-- **Data:** 26/08/2026
+- **Status:** **aceita**
+- **Data:** 26/08/2026 · confirmada em 29/08/2026
 - **Contexto:** dúvidas [22 e 28](../requisitos/06-duvidas-kickoff.md) · [09 §2](../requisitos/09-arquitetura-e-stack.md)
 
 ---
@@ -99,14 +99,27 @@ nenhum ganho, já que o painel é a página inteira.
 **`Views/` vazia, só para "cumprir" o nome.** Descartada: pasta decorativa é pior
 que pasta ausente. Ela sugere ao próximo dev que existe renderização no servidor.
 
-## Pendência
+## Confirmação
 
-A frase do parceiro não especificou qual dos dois templates ele quis dizer. A
-pergunta precisa ser feita de forma **binária** no kick-off de 14/09 (dúvida 22):
+Questionado, o parceiro reafirmou apenas *"estrutura MVC"*, sem escolher entre os
+dois templates e sem questionar o React como frontend. As duas posições juntas só
+fecham de uma forma: **Web API com Controllers, com o React renderizando a tela**.
+Se a intenção fosse Razor, o React que o próprio TAP define não teria função.
 
-> *"Estrutura MVC = Web API com Controllers, com o React renderizando a tela; ou
-> MVC com Razor, com o servidor renderizando? Se for Razor, o React sai do escopo?"*
+A decisão passa a valer como definitiva. O argumento para a banca, se a pergunta
+vier:
 
-Se a resposta for Razor, esta ADR é substituída e o impacto é grande: o React sai
-ou vira widget, e o back-end passa a renderizar. Descobrir isso na semana 3 custa
-o cronograma inteiro.
+> O `ControllerBase` de que a API herda vem de `Microsoft.AspNetCore.Mvc`.
+> Roteamento por atributo, model binding, validação, filtros e injeção de
+> dependência são o pipeline MVC inteiro. A única peça do framework que não
+> usamos é o **view engine** (Razor) — e ela foi substituída, não eliminada: a
+> View mudou de processo, do servidor para o navegador.
+
+**Verificação prática desta decisão.** O SSE foi implementado como action de
+controller escrevendo o enquadramento `data: {...}` diretamente na resposta. Vale
+registrar o que aprendemos ao construir: devolver `IAsyncEnumerable<T>` de uma
+action **não** produz SSE — o MVC serializa a sequência como array JSON com
+`Content-Type: application/json`, e o `EventSource` conecta, recebe algo que não
+sabe interpretar e nunca dispara `onmessage`, sem erro em lugar nenhum. A [seção
+2 do doc 09](../requisitos/09-arquitetura-e-stack.md) sugeria essa forma; a
+implementação real escreve o enquadramento e dá `flush` por evento.

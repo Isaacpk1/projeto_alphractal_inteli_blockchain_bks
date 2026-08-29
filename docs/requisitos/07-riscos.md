@@ -24,10 +24,17 @@
 | R-20 | **Escrever direto na instância de produção** da Alphractal, violando restrição do TAP | Baixa | Alto | ClickHouse local via Docker durante todo o projeto ([09 §7](./09-arquitetura-e-stack.md)); troca de instância é decisão do parceiro, pós-entrega |
 | R-11 | **Escopo inflar** com itens do backlog de diferenciais | Alta | Alto | Nenhum item **D** iniciado antes de todos os **[M]** fechados (ver [05](./05-backlog-diferenciais.md)) |
 | R-12 | **Prazo de 4 semanas** com 2 semanas efetivas de código (semanas 2 e 3) | Alta | Alto | Congelar escopo no fim da semana 1; tratar semana 4 como estabilização e ensaio da demo, não como desenvolvimento |
+| R-21 | **Tamanho do mempool indisponível** — o painel de referência exibe "MEMPOOL 142.880 tx", mas a Alchemy não expõe `txpool_status` (método do Geth). O que se obtém é a contagem do *bloco pendente*, ~100–300 | Confirmada | Médio | Rotular como "transações no bloco pendente", nunca como "mempool" — um número três ordens de grandeza menor sob o rótulo errado é pior que ausência do dado. Sinal de pressão sub-bloco continua válido e é a única métrica que se move entre blocos |
 
 ---
 
 ## Riscos que valem atenção especial
+
+**R-21 já se materializou e foi contornado.** Descoberto ao implementar: a
+amostragem funcionava, o número era plausível à primeira vista (114), e só a
+comparação com a ordem de grandeza esperada revelou que media outra coisa. Fica
+como lembrete de que dado *presente e errado* é mais perigoso que dado ausente —
+o segundo é óbvio, o primeiro passa na revisão.
 
 **R-16 (quatro runtimes)** passou a ser o principal risco do projeto. Não é a dificuldade de nenhuma tecnologia isolada — é que cada fronteira entre elas (.NET→spool, spool→Python, Python→ClickHouse, .NET→ClickHouse, .NET→React) é um lugar onde se perde um dia. São cinco fronteiras em duas semanas de código. A linha de corte de [09 §4](./09-arquitetura-e-stack.md) existe exatamente para isso.
 

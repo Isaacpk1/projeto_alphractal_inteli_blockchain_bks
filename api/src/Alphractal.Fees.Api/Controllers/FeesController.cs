@@ -67,7 +67,7 @@ public sealed class FeesController : ControllerBase
         {
             SampledAtUtc = sample.SampledAt,
             BlockNumber = sample.BlockNumber,
-            PendingTxCount = sample.PendingTxCount,
+            PendingBlockTxCount = sample.PendingBlockTxCount,
             BaseFeeGwei = sample.BaseFeeGwei,
             PrioritySlowGwei = sample.PrioritySlowGwei,
             PriorityStandardGwei = sample.PriorityStandardGwei,

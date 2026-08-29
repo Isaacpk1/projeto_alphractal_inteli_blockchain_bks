@@ -122,6 +122,59 @@ public sealed class NdjsonSpoolWriter : ISpoolWriter
         await AppendAsync(lines, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task WriteMempoolSampleAsync(
+        DateTimeOffset sampledAt,
+        BigInteger blockNumber,
+        uint pendingTxCount,
+        BigInteger baseFeePerGas,
+        PriorityFeeSample tiers,
+        EthPrice price,
+        CancellationToken cancellationToken)
+    {
+        if (!price.HasValue)
+        {
+            return;
+        }
+
+        var line = Line("mempool_samples", writer =>
+        {
+            writer.WriteString("sampled_at", Iso(sampledAt));
+            Raw(writer, "block_number", blockNumber);
+            writer.WriteNumber("pending_tx_count", pendingTxCount);
+            Raw(writer, "base_fee_per_gas", baseFeePerGas);
+            Raw(writer, "suggested_priority_slow", tiers.Slow);
+            Raw(writer, "suggested_priority_standard", tiers.Standard);
+            Raw(writer, "suggested_priority_fast", tiers.Fast);
+            writer.WriteString("eth_usd", price.Price.ToString(CultureInfo.InvariantCulture));
+        });
+
+        await AppendAsync([line], cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task WriteHealthAsync(
+        string component,
+        string status,
+        long lagMs,
+        BigInteger lastBlock,
+        string detail,
+        CancellationToken cancellationToken)
+    {
+        var line = Line("ingestion_health", writer =>
+        {
+            writer.WriteString("observed_at", Iso(DateTimeOffset.UtcNow));
+            writer.WriteString("component", component);
+            writer.WriteString("status", status);
+            // O contrato do ETL rejeita inteiro unsigned negativo; um relogio
+            // fora de sincronia produziria latencia negativa e mandaria o
+            // arquivo INTEIRO para failed/ — levando os blocos junto.
+            writer.WriteNumber("lag_ms", Math.Max(0, lagMs));
+            Raw(writer, "last_block", BigInteger.Max(lastBlock, BigInteger.Zero));
+            writer.WriteString("detail", detail.Length > 1000 ? detail[..1000] : detail);
+        });
+
+        await AppendAsync([line], cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Monta uma linha NDJSON no formato <c>{"table":...,"data":{...}}</c>.</summary>
     /// <remarks>
     /// <see cref="Utf8JsonWriter"/> e nao interpolacao de string: ele escapa hash

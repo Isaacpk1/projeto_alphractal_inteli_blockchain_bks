@@ -20,4 +20,19 @@ public interface IChainMetricsProvider
 
     /// <summary>Numero de transacoes de um bloco — usado no spool (<c>tx_count</c>).</summary>
     Task<uint> GetTransactionCountAsync(BigInteger blockNumber, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Transacoes aguardando inclusao no momento da chamada (<c>pending</c>).
+    /// </summary>
+    /// <remarks>
+    /// Amostra sub-bloco: e o unico sinal do sistema que se move ENTRE blocos.
+    /// Todo o resto so muda a cada ~12 s, entao o mempool e o que mostra pressao
+    /// se acumulando antes de virar base fee.
+    /// <para>
+    /// Numero aproximado por natureza: cada no vê um mempool diferente, e o que a
+    /// Alchemy reporta e a visao dela. Serve para tendencia, nao para contagem
+    /// exata — e o painel deve apresentar assim.
+    /// </para>
+    /// </remarks>
+    Task<uint> GetPendingTransactionCountAsync(CancellationToken cancellationToken);
 }

@@ -103,6 +103,22 @@ public sealed class NethereumChainMetricsProvider : IChainMetricsProvider
         return samples;
     }
 
+    public async Task<uint> GetPendingTransactionCountAsync(CancellationToken cancellationToken)
+    {
+        if (_web3 is null)
+        {
+            return 0;
+        }
+
+        var count = await _web3.Eth.Blocks.GetBlockTransactionCountByNumber
+            .SendRequestAsync(BlockParameter.CreatePending())
+            .ConfigureAwait(false);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return (uint)count.Value;
+    }
+
     public async Task<uint> GetTransactionCountAsync(BigInteger blockNumber, CancellationToken cancellationToken)
     {
         if (_web3 is null)

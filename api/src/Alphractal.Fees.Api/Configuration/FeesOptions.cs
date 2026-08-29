@@ -109,6 +109,18 @@ public sealed class FeesOptions
     [Range(5, 3_600)]
     public int StaleAfterSeconds { get; init; } = 60;
 
+    /// <summary>
+    /// Periodo da amostragem de mempool, em segundos. <c>0</c> desliga.
+    /// </summary>
+    /// <remarks>
+    /// 4 s da ~3 amostras por bloco — suficiente para ver pressao se acumulando
+    /// entre blocos. E a peca mais cara do orcamento de RPC (uma chamada por
+    /// amostra, contra 5 blocos/min da ingestao) e a primeira a cortar se ele
+    /// apertar.
+    /// </remarks>
+    [Range(0, 3_600)]
+    public int MempoolSampleSeconds { get; init; } = 4;
+
     /// <summary>Intervalo de atualizacao da cotacao ETH/USD (RN-03).</summary>
     [Range(5, 3_600)]
     public int PriceRefreshSeconds { get; init; } = 60;

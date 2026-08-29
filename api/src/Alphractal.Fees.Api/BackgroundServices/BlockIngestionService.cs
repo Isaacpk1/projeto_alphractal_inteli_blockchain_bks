@@ -34,9 +34,8 @@ public sealed class BlockIngestionService : BackgroundService
     private readonly FeesBroadcaster _broadcaster;
     private readonly ISpoolWriter _spool;
     private readonly FeesOptions _options;
+    private readonly PriorityFeeState _tiers;
     private readonly ILogger<BlockIngestionService> _logger;
-
-    private PriorityFeeSample _lastKnownTiers = new() { Slow = 0, Standard = 0, Fast = 0 };
 
     public BlockIngestionService(
         INewBlockProvider blocks,
@@ -47,6 +46,7 @@ public sealed class BlockIngestionService : BackgroundService
         SnapshotBuilder builder,
         FeesBroadcaster broadcaster,
         ISpoolWriter spool,
+        PriorityFeeState tiers,
         IOptions<FeesOptions> options,
         ILogger<BlockIngestionService> logger)
     {
@@ -58,6 +58,7 @@ public sealed class BlockIngestionService : BackgroundService
         _builder = builder;
         _broadcaster = broadcaster;
         _spool = spool;
+        _tiers = tiers;
         _options = options.Value;
         _logger = logger;
     }
@@ -135,7 +136,7 @@ public sealed class BlockIngestionService : BackgroundService
 
             if (history.Count > 0)
             {
-                _lastKnownTiers = _calculator.SpeedTiers(history);
+                _tiers.Current = _calculator.SpeedTiers(history);
             }
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -145,7 +146,7 @@ public sealed class BlockIngestionService : BackgroundService
             _logger.LogWarning(exception, "eth_feeHistory falhou no bloco {Number}. Mantendo faixas anteriores.", blockNumber);
         }
 
-        return _lastKnownTiers;
+        return _tiers.Current;
     }
 
     private async Task WriteSpoolSafelyAsync(
@@ -163,6 +164,27 @@ public sealed class BlockIngestionService : BackgroundService
             await _spool
                 .WriteBlockAsync(block, nextBaseFee, tiers, txCount, estimates, price, cancellationToken)
                 .ConfigureAwait(false);
+
+            // Heartbeat real, substituindo os valores de seed que o /status
+            // exibia. Dois componentes distintos porque falham de formas
+            // diferentes: o socket pode cair com o processo vivo.
+            await _spool.WriteHealthAsync(
+                "ws_listener",
+                "ok",
+                (long)block.DeliveryLatency.TotalMilliseconds,
+                block.Number,
+                $"newHeads; janela {_window.Count}/{_options.HotWindowBlocks}",
+                cancellationToken).ConfigureAwait(false);
+
+            await _spool.WriteHealthAsync(
+                "api",
+                price.HasValue ? "ok" : "degraded",
+                0,
+                block.Number,
+                price.HasValue
+                    ? $"sse={_broadcaster.SubscriberCount}; preco={price.Source}"
+                    : $"sse={_broadcaster.SubscriberCount}; sem cotacao ETH/USD",
+                cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

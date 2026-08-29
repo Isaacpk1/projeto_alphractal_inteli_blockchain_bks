@@ -65,7 +65,7 @@ public sealed class HttpEthPriceProvider : IEthPriceProvider
             var fetched = await FetchAsync(cancellationToken).ConfigureAwait(false);
             if (fetched > 0)
             {
-                _cached = new EthPrice(fetched, now, "coingecko");
+                _cached = new EthPrice(fetched, now, SourceLabel());
                 return _cached;
             }
 
@@ -81,6 +81,20 @@ public sealed class HttpEthPriceProvider : IEthPriceProvider
             _gate.Release();
         }
     }
+
+    /// <summary>
+    /// Procedencia da cotacao, derivada da URL configurada.
+    /// </summary>
+    /// <remarks>
+    /// Derivada, e nao constante: este valor vai para a coluna <c>source</c> de
+    /// <c>eth_usd_prices</c>. Um rotulo chumbado registra procedencia errada no
+    /// banco quando alguem troca a fonte por configuracao — e procedencia errada
+    /// em metrica financeira invalida a auditoria, sem dar nenhum sinal.
+    /// </remarks>
+    private string SourceLabel()
+        => Uri.TryCreate(_options.PriceSourceUrl, UriKind.Absolute, out var uri)
+            ? uri.Host
+            : "desconhecida";
 
     private EthPrice Fallback(DateTimeOffset now)
         => _options.FallbackEthUsd > 0
