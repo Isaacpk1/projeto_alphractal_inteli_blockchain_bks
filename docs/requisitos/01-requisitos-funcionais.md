@@ -72,7 +72,7 @@ RF-01 a RF-40. Prioridade: **[M]** Must · **[S]** Should · **[C]** Could
 | RF-34 | O .NET deve gravar cada bloco processado no spool NDJSON, e o ETL Python deve carregá-lo no ClickHouse **em lote** (~25 registros ou 300 s por `INSERT`) — nunca linha a linha. | S |
 | RF-35 | Ao iniciar, o .NET deve recarregar a janela quente consultando o ClickHouse com `FINAL`/`argMax()`, para que o painel abra já com o gráfico populado. | S |
 | RF-36 | O ETL deve oferecer um script de *backfill* sob demanda, detectando lacunas de blocos e buscando-as via RPC, com controle explícito de consumo de CU. | C |
-| RF-37 | Agregados **horários e diários** devem ser mantidos por **materialized views** (`AggregatingMergeTree`), e a retenção dos dados brutos por `TTL` declarativo (30 dias, RN-15). | C |
+| RF-37 | Agregados **horários e diários** devem ser recalculados pelo ETL para os buckets afetados e persistidos em `ReplacingMergeTree`; a retenção dos dados brutos usa `TTL` declarativo (30 dias, RN-15). | C |
 | RF-38 | O endpoint de histórico deve aceitar janelas maiores (24 h, 7 d, 30 d), lendo os agregados; janelas curtas continuam vindo da memória. | C |
 | RF-39 | O ETL deve ser idempotente: reprocessar o mesmo arquivo de spool não pode duplicar dados nas consultas. | S |
 | RF-40 | O ETL deve mover arquivos processados para um diretório separado apenas após confirmação do `INSERT`, permitindo reprocessamento em caso de falha. | S |

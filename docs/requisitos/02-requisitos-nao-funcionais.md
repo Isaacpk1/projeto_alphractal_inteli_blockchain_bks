@@ -50,7 +50,7 @@ RNF-01 a RNF-31. IDs cancelados são mantidos riscados e nunca reaproveitados.
 | RNF-18 | Logs estruturados (nível, timestamp, contexto) para conexão RPC, blocos processados e erros. |
 | RNF-25 | A escrita no banco deve ocorrer **fora do caminho crítico** do SSE: o evento vai aos clientes primeiro; a persistência acontece de forma assíncrona/em lote. |
 | RNF-27 | O acesso a dados deve ficar atrás de uma interface de *repository*, permitindo trocar a instância de ClickHouse (Docker local ↔ instância da Alphractal) por configuração, sem alterar a camada de serviço. |
-| RNF-28 | Migrações de schema devem ser versionadas em arquivos no repositório, nunca aplicadas manualmente no banco. As *materialized views* precisam ser criadas **antes** da primeira carga (ver R-17). |
+| RNF-28 | Migrações de schema devem ser versionadas em arquivos no repositório, nunca aplicadas manualmente no banco. Tabelas, rollups, views e grants são criados antes da primeira carga. |
 | ~~RNF-29~~ | ~~Com SQLite, habilitar modo **WAL**~~ — **cancelado**. Era específico do SQLite, revogado pela adoção do ClickHouse. O problema equivalente aqui é a inserção em lote (R-14, [04 §1.1](./04-persistencia-banco-de-dados.md)). |
 
 ## 5. Usabilidade e acessibilidade

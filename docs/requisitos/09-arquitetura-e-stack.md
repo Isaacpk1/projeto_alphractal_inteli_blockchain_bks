@@ -43,7 +43,7 @@ Por isso a arquitetura se divide em dois caminhos independentes:
                     históricas        │          └────────────┬─────────────┘
                           ┌───────────┴───────┐               ▼
                           │  .NET  /api/...   │◀────────  ClickHouse
-                          └───────────────────┘         (materialized views)
+                          └───────────────────┘         (rollups idempotentes)
 ```
 
 **Caminho quente** — tudo que o painel mostra ao vivo. Nunca toca em Python nem em ClickHouse.
@@ -105,7 +105,7 @@ Avaliamos fila (RabbitMQ/Redis) e escrita direta do .NET no ClickHouse. Para um 
 3. **Sobrevive a queda de qualquer lado** — se o Python cair, os arquivos se acumulam e são processados depois. Se o .NET cair, o Python continua drenando o que já existe.
 4. **É literalmente um ETL** — extract (arquivo), transform (Python), load (ClickHouse). Fácil de defender e de desenhar no slide.
 
-**Convenção:** `.NET` escreve `spool/pending/blocks-YYYYMMDD-HHMM.ndjson`, fecha o arquivo ao virar o minuto e move para `spool/ready/`. O Python processa apenas o que está em `ready/` e move para `processed/` após confirmação do insert. Um arquivo por minuto ≈ 5 blocos por lote.
+**Convenção:** `.NET` escreve em `spool/pending/`, fecha um lote NDJSON e o move atomicamente para `spool/ready/`. O Python faz claim em `processing/`, valida o arquivo inteiro e move para `processed/` apenas após confirmação durável do insert. Erro de contrato vai para `failed/`; erro transitório permanece em `processing/` para retry.
 
 ---
 
@@ -123,7 +123,7 @@ Detalhamento completo em [04 — Persistência](./04-persistencia-banco-de-dados
 
 - **Tipos nativos para wei** (`UInt64`, `UInt256`) — some a gambiarra de guardar wei como `TEXT`.
 - **Retenção declarativa** — `TTL block_time + INTERVAL 30 DAY` na definição da tabela. A RN-15 vira configuração, não job.
-- **Agregação declarativa** — *materialized views* com `AggregatingMergeTree` mantêm os rollups horários automaticamente. O RF-37 deixa de ser código. E `quantile()` nativo torna **D-02 (percentil) e D-04 (heatmap) quase triviais** — eram os diferenciais mais caros da lista.
+- **Agregação nativa** — o ETL recalcula somente os buckets afetados usando `quantileExact()` e grava novas versões em `ReplacingMergeTree`. Isso evita a dupla contagem que uma materialized view incremental causaria após reprocessamento ou reorg.
 
 **Honestidade sobre dimensionamento:** 216 mil linhas por mês. ClickHouse é projetado para bilhões. Tecnicamente é desproporcional — mas o critério aqui é alinhamento com a infraestrutura do parceiro, e o ganho em D-02/D-04 é real.
 
@@ -149,11 +149,11 @@ Quatro tecnologias e quatro runtimes (TypeScript, C#, Python, SQL) em ~2 semanas
 | **RN-06** (precisão) | `System.Numerics.BigInteger` no .NET; `UInt256`/`UInt64` no ClickHouse. Some a regra de guardar wei como `TEXT` |
 | **RN-08 / RN-16** (reorg) | De `UPSERT` para `ReplacingMergeTree` + coluna de versão, com dedup assíncrona |
 | **RN-15** (retenção) | Vira `TTL` declarativo na tabela |
-| **RF-37** (agregados) | Vira *materialized view*, não código |
+| **RF-37** (agregados) | Recomputação idempotente dos buckets afetados pelo ETL |
 | **RNF-13** (tipagem) | `TypeScript strict` no front; `<Nullable>enable</Nullable>` + warnings como erro no .NET; `mypy` no Python |
 | **RNF-22** (execução local) | `docker-compose` deixa de ser opcional — ClickHouse exige container |
 | **R-03** (precisão float) | **Risco praticamente eliminado** pelo `BigInteger` nativo |
-| **D-02 / D-04** | Esforço cai bastante — `quantile()` nativo e materialized views |
+| **D-02 / D-04** | Esforço cai bastante — agregações e `quantileExact()` nativos |
 
 ## 6. Como classificar o ClickHouse nesta arquitetura
 
@@ -193,7 +193,7 @@ A divisão em dois caminhos é uma **arquitetura Lambda** simplificada:
 | Camada Lambda | Nosso componente | Responde |
 |---|---|---|
 | **Speed layer** (velocidade) | Janela de 300 blocos em memória no .NET | "o que está acontecendo agora?" |
-| **Batch layer** (lote) | ClickHouse + materialized views | "o que aconteceu nos últimos 30 dias?" |
+| **Batch layer** (lote) | ClickHouse + rollups idempotentes | "o que aconteceu nos últimos 30 dias?" |
 | **Serving layer** (serviço) | API .NET (`Controllers/`), que consulta as duas | unifica para o painel |
 
 Resposta completa para a banca: *ClickHouse é a batch/serving layer de uma arquitetura Lambda, operando como base de real-time analytics para o caminho frio.*

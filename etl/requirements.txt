@@ -1,6 +1,6 @@
 requests>=2.31
 python-dotenv>=1.0
-web3>=7.0
+clickhouse-connect>=0.8
 
 # dev
 pytest>=8.0

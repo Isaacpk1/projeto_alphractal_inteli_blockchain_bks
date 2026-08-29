@@ -9,8 +9,7 @@
 TRUNCATE TABLE IF EXISTS alphractal.eth_blocks;
 TRUNCATE TABLE IF EXISTS alphractal.mempool_samples;
 TRUNCATE TABLE IF EXISTS alphractal.fee_estimates;
-TRUNCATE TABLE IF EXISTS alphractal.eth_fees_1h;
-TRUNCATE TABLE IF EXISTS alphractal.eth_fees_1d;
+TRUNCATE TABLE IF EXISTS alphractal.eth_fees_rollup;
 TRUNCATE TABLE IF EXISTS alphractal.fee_estimates_1d;
 TRUNCATE TABLE IF EXISTS alphractal.ingestion_health;
 
@@ -56,6 +55,9 @@ FROM
 -- Amostras de mempool: 1 a cada 2 s nas últimas 6 h (10800 linhas)
 -- ---------------------------------------------------------------------------
 INSERT INTO alphractal.mempool_samples
+    (sampled_at, block_number, pending_tx_count, base_fee_per_gas,
+     suggested_priority_slow, suggested_priority_standard,
+     suggested_priority_fast, eth_usd)
 SELECT
     toDateTime64(now('UTC') - ((10800 - number) * 2), 3, 'UTC') AS sampled_at,
     23000000 + 14400 - intDiv(10800 - number, 6) AS block_number,
@@ -114,6 +116,51 @@ FROM
         ('nft_mint',        toUInt32(150000))
     ] AS op
 );
+
+-- ---------------------------------------------------------------------------
+-- Rollups idempotentes. Em producao, o ETL recalcula apenas os buckets afetados.
+-- ---------------------------------------------------------------------------
+INSERT INTO alphractal.eth_fees_rollup
+SELECT
+    granularity,
+    bucket,
+    now64(3, 'UTC') AS calculated_at,
+    count() AS blocks,
+    avg(base_fee_per_gas) AS base_fee_avg,
+    min(base_fee_per_gas) AS base_fee_min,
+    max(base_fee_per_gas) AS base_fee_max,
+    quantileExact(0.50)(base_fee_per_gas) AS base_fee_p50,
+    quantileExact(0.90)(base_fee_per_gas) AS base_fee_p90,
+    quantileExact(0.95)(base_fee_per_gas) AS base_fee_p95,
+    avg(priority_fee_p50) AS priority_fee_avg,
+    avg(gas_used / greatest(gas_limit, 1)) AS gas_used_ratio_avg,
+    sum(tx_count) AS tx_count,
+    sum(burned_wei) AS burned_wei,
+    avg(eth_usd) AS eth_usd_avg
+FROM
+(
+    SELECT 'hour' AS granularity, toStartOfHour(block_timestamp) AS bucket, *
+    FROM alphractal.eth_blocks FINAL
+    UNION ALL
+    SELECT 'day' AS granularity, toStartOfDay(block_timestamp) AS bucket, *
+    FROM alphractal.eth_blocks FINAL
+)
+GROUP BY granularity, bucket;
+
+INSERT INTO alphractal.fee_estimates_1d
+SELECT
+    toDate(sampled_at) AS bucket,
+    operation,
+    speed,
+    now64(3, 'UTC') AS calculated_at,
+    count() AS samples,
+    avg(total_fee_usd) AS usd_avg,
+    min(total_fee_usd) AS usd_min,
+    max(total_fee_usd) AS usd_max,
+    quantileExact(0.50)(total_fee_usd) AS usd_p50,
+    quantileExact(0.90)(total_fee_usd) AS usd_p90
+FROM alphractal.fee_estimates FINAL
+GROUP BY bucket, operation, speed;
 
 -- ---------------------------------------------------------------------------
 -- Heartbeat dos componentes
