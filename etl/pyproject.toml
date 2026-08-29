@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["mypy>=1.11", "pytest>=8.0"]
+dev = ["mypy>=1.11", "pytest>=8.0", "types-requests>=2.31"]
 
 [project.scripts]
 alphractal-etl = "alphractal_etl.main:main"
