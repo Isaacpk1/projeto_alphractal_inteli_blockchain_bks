@@ -1,0 +1,76 @@
+/*
+ * Tokens de tema — fonte única de cor do painel (RF-31, RNF-20).
+ *
+ * O boot script do index.html estampa data-theme antes do primeiro paint
+ * (padrão: dark, a identidade da Alphractal), então não há flash de tema.
+ * Texto sobre superfície mantém contraste WCAG AA nos dois temas — se for
+ * trocar um valor, confira com um checker antes.
+ */
+
+:root {
+  /* superfícies */
+  --bg: #e6e8eb;
+  --bg-sidebar: #ffffff;
+  --bg-topbar: #e5e7ea;
+  --surface: #ffffff;
+  --surface-2: #f5f7fa;
+  --border: #d7dce4;
+  --border-strong: #c5cdd9;
+
+  /* texto */
+  --text: #11151d;
+  --text-muted: #566175;
+  --text-faint: #718097; /* 4.7:1 sobre --surface */
+
+  /* marca */
+  --accent: #3d6df2;
+  --accent-text: #285bdc;
+  --accent-soft: #dce8ff;
+
+  /* semânticas */
+  --green: #17934f;
+  --green-soft: #e3f6ec;
+  --amber: #f59e0b;
+  --amber-text: #9a5b00;
+  --amber-soft: #fdf3e0;
+  --red: #d92d20;
+  --red-soft: #fdeceb;
+
+  /* gráfico */
+  --chart-grid: #e8ebf1;
+  --chart-cursor: #a8b0c2;
+
+  --shadow: 0 1px 2px rgb(16 24 40 / 0.05);
+  --radius: 8px;
+}
+
+:root[data-theme='dark'] {
+  --bg: #050a13;
+  --bg-sidebar: #080e19;
+  --bg-topbar: #040912;
+  --surface: #101a2d;
+  --surface-2: #121d31;
+  --border: #1c2940;
+  --border-strong: #31415e;
+
+  --text: #f1f4fa;
+  --text-muted: #b8c2d4;
+  --text-faint: #8f9bb2; /* 5.5:1 sobre --surface */
+
+  --accent: #4f7cff;
+  --accent-text: #62a0ff;
+  --accent-soft: #142748;
+
+  --green: #3ad584;
+  --green-soft: #10281c;
+  --amber: #fbbf24;
+  --amber-text: #fcd34d;
+  --amber-soft: #2b210d;
+  --red: #f97066;
+  --red-soft: #331512;
+
+  --chart-grid: #202d44;
+  --chart-cursor: #566580;
+
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+}
