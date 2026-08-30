@@ -92,6 +92,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Este job compara os SHAs de base e head do PR. O checkout raso
+          # padrão contém somente o merge commit e faz `git diff` falhar com
+          # "bad object" ao tentar acessar a base.
+          fetch-depth: 0
 
       # Nenhum compilador verifica se Models/Responses/ e contract.ts batem — e
       # a fragilidade que a ADR-001 documenta. Este passo nao valida os tipos
