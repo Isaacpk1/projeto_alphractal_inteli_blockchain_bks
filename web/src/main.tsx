@@ -1,12 +1,20 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
+import { PreferencesProvider } from './hooks/usePreferences';
+import './styles/theme.css';
+import './styles/app.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('#root não encontrado no index.html');
 
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <BrowserRouter>
+      <PreferencesProvider>
+        <App />
+      </PreferencesProvider>
+    </BrowserRouter>
   </StrictMode>,
 );

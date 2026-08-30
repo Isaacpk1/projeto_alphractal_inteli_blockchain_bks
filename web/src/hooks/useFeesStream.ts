@@ -1,34 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
-import { endpoints } from '../lib/api';
-import type { FeesSnapshot, StreamStatus } from '../types/contract';
+import { useEffect } from 'react';
+import { startFeesStore } from '../lib/feesStore';
 
 /**
- * Assina o SSE da API. É este hook que faz o painel ser "ao vivo" — e é por causa
- * dele que a View não pode ser Razor: o servidor não empurra HTML atualizado.
+ * Liga o stream. Só o App chama, uma vez — este hook NÃO devolve estado.
+ * Quem lê dado é useFeesSlice, componente a componente: é essa separação que
+ * impede o App de re-renderizar a cada bloco (RNF-03).
  *
- * EventSource já reconecta sozinho. O que ele NÃO faz é avisar que o dado ficou
- * velho: quem mostra "dado atrasado há 40 s" é o campo dataAgeSeconds.
+ * startFeesStore é idempotente, então o double-mount do StrictMode é inócuo.
  */
-export function useFeesStream() {
-  const [snapshot, setSnapshot] = useState<FeesSnapshot | null>(null);
-  const [status, setStatus] = useState<StreamStatus>('conectando');
-  const sourceRef = useRef<EventSource | null>(null);
-
+export function useFeesStream(): void {
   useEffect(() => {
-    const source = new EventSource(endpoints.stream);
-    sourceRef.current = source;
-
-    source.onopen = () => setStatus('ao-vivo');
-    source.onmessage = (event) => {
-      setSnapshot(JSON.parse(event.data) as FeesSnapshot);
-      setStatus('ao-vivo');
-    };
-    source.onerror = () => {
-      setStatus(source.readyState === EventSource.CLOSED ? 'erro' : 'reconectando');
-    };
-
-    return () => source.close();
+    startFeesStore();
   }, []);
-
-  return { snapshot, status };
 }
