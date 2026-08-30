@@ -1,51 +1,25 @@
-/**
- * Espelho em TypeScript de api/src/Alphractal.Fees.Api/Models/Responses/.
- *
- * Este arquivo é a metade do contrato que vive no front. Não existe compilador
- * que verifique se ele bate com o C# — se um campo mudar lá e não mudar aqui,
- * a tela quebra em runtime, sem aviso. Mudou o DTO na API? Mude aqui no MESMO PR.
- *
- * Unidades: a API já entrega convertido. Nunca chega wei aqui.
- */
+/** Tipos usados pela interface. O transporte converte os DTOs reais da API. */
 
-// ─── Caminho quente (memória da API, SSE) ────────────────────────────────────
-
+export type CongestionLevel = 'baixo' | 'normal' | 'alto' | 'extremo';
+export type TrendDirection = 'subindo' | 'caindo' | 'estavel';
+export type TierId = 'slow' | 'standard' | 'fast';
 export type SpeedLabel = 'lento' | 'padrao' | 'rapido';
-export type CongestionLabel = 'baixo' | 'normal' | 'alto' | 'extremo';
 
-export interface CongestionResponse {
-  level: CongestionLabel;
-  /** Base fee atual ÷ média móvel de N_cong blocos. */
-  ratio: number;
-  movingAverageGwei: number;
-  /** Menor que N_cong enquanto a janela enche — o painel pode indicar "aquecendo". */
-  sampleSize: number;
-}
-
-export interface SpeedTierResponse {
-  speed: SpeedLabel;
+export interface FeeTier {
+  maxFeeGwei: number;
   priorityFeeGwei: number;
+  estEth: number;
+  estUsd: number;
+  etaSeconds: number;
 }
 
-export interface OperationCostResponse {
-  operation: string;
-  speed: SpeedLabel;
-  gasUnits: number;
-  totalFeeGwei: number;
-  totalFeeEth: number;
-  /** Ausente quando não há cotação. NUNCA exiba 0 — exiba "—". */
-  totalFeeUsd?: number;
+export interface TxTypeEstimate {
+  id: string;
+  label: string;
+  gasLimit: number;
+  tiers: Record<TierId, { eth: number; usd: number }>;
 }
 
-export interface EthPriceResponse {
-  price: number;
-  observedAtUtc: string;
-  /** Defasada há mais de 5 min: exibir como desatualizada (RN-03). */
-  isStale: boolean;
-  source: string;
-}
-
-/** Payload de cada evento SSE e de /api/v1/fees/snapshot. */
 export interface FeesSnapshot {
   blockNumber: number;
   blockHash: string;
@@ -55,59 +29,82 @@ export interface FeesSnapshot {
   gasUsed: number;
   gasLimit: number;
   gasUsedRatio: number;
-  congestion: CongestionResponse;
-  speeds: SpeedTierResponse[];
-  estimates: OperationCostResponse[];
-  /** Ausente quando não há cotação disponível. */
-  ethUsd?: EthPriceResponse;
+  trend: TrendDirection;
+  congestion: { level: CongestionLevel; ratio: number };
+  tiers: Record<TierId, FeeTier>;
+  ethUsd: { price: number; change24hPct: number };
+  txEstimates: TxTypeEstimate[];
   dataAgeSeconds: number;
-  /** Sem bloco novo há mais de 60 s — sair de "Ao vivo" (RN-07). */
   isStale: boolean;
-  /** Segundos entre o bloco e a chegada na API. É o RNF-01 medido. */
   deliveryLatencySeconds: number;
   windowSize: number;
   source: 'live';
 }
 
-export type StreamStatus = 'conectando' | 'ao-vivo' | 'reconectando' | 'erro';
-
-// ─── Caminho frio (ClickHouse, views v_*) ────────────────────────────────────
-
-/** Resposta de /api/v1/fees/latest. `source` é sempre "cold" — não é o dado ao vivo. */
-export interface LatestBlockResponse {
+/** DTO exato de GET /snapshot e de cada mensagem SSE. */
+export interface ApiFeesSnapshot {
   blockNumber: number;
+  blockHash: string;
   blockTimestampUtc: string;
   baseFeeGwei: number;
   nextBaseFeeGwei: number;
-  priorityFeeGwei: number;
   gasUsed: number;
   gasLimit: number;
   gasUsedRatio: number;
-  txCount: number;
-  burnedEth: number;
-  ethUsd: number;
+  congestion: {
+    level: CongestionLevel;
+    ratio: number;
+    movingAverageGwei: number;
+    sampleSize: number;
+  };
+  speeds: Array<{ speed: SpeedLabel; priorityFeeGwei: number }>;
+  estimates: Array<{
+    operation: string;
+    speed: SpeedLabel;
+    gasUnits: number;
+    totalFeeGwei: number;
+    totalFeeEth: number;
+    totalFeeUsd?: number | null;
+  }>;
+  ethUsd?: {
+    price: number;
+    observedAtUtc: string;
+    isStale: boolean;
+    source: string;
+  } | null;
   dataAgeSeconds: number;
-  source: 'cold';
+  isStale: boolean;
+  deliveryLatencySeconds: number;
+  windowSize: number;
+  source: 'live';
 }
 
-export interface MempoolNowResponse {
-  sampledAtUtc: string;
+export interface HistoryPoint {
   blockNumber: number;
-  pendingTxCount: number;
+  blockTimestampUtc: string;
   baseFeeGwei: number;
-  prioritySlowGwei: number;
-  priorityStandardGwei: number;
-  priorityFastGwei: number;
-  ethUsd: number;
+  priorityFeeP50Gwei: number;
+  gasUsedRatio: number;
 }
 
-export interface FeeEstimateResponse {
-  operation: string;
-  speed: string;
-  gasUnits: number;
-  totalFeeGwei: number;
-  totalFeeUsd: number;
-  lastSampledAtUtc: string;
+export interface FeesInsights {
+  burnRateEthPerMin: number;
+  burned24hEth: number;
+}
+
+export type MetricId =
+  | 'total-fees-eth'
+  | 'total-fees-usd'
+  | 'mean-tx-fee-eth'
+  | 'mean-tx-fee-usd'
+  | 'mean-fee-per-gas';
+
+export interface MetricPoint { t: string; value: number; ethUsd: number }
+export interface MetricSeries {
+  metric: MetricId;
+  resolution: '1h' | '1d';
+  from: string;
+  points: MetricPoint[];
 }
 
 export interface FeeHistoryPointResponse {
@@ -126,42 +123,56 @@ export interface FeeHistoryPointResponse {
   ethUsdAvg: number;
 }
 
-export interface FeeEstimateDailyResponse {
-  /** Data ISO (YYYY-MM-DD) — serializado de DateOnly. */
-  bucket: string;
-  operation: string;
-  speed: string;
-  samples: number;
-  usdAvg: number;
-  usdMin: number;
-  usdMax: number;
-  usdP50: number;
-  usdP90: number;
-}
-
-export type HistoryGranularity = 'hour' | 'day';
-
 export interface HistoryResponse<T> {
-  granularity: HistoryGranularity;
+  granularity: 'hour' | 'day';
   fromUtc: string;
   toUtc: string;
   count: number;
   items: T[];
 }
 
-// ─── Status da ingestão ──────────────────────────────────────────────────────
+export interface EthUsd24hResponse {
+  precoAtual: number;
+  observadoEmUtc: string;
+  preco24h?: number | null;
+  variacaoPercentual?: number | null;
+}
 
+export interface QueimaResponse {
+  ethPorMinuto: number;
+  ethNoUltimoBloco: number;
+  ethNaJanela: number;
+  blocosNaJanela: number;
+  minutosDaJanela: number;
+  usdPorMinuto?: number | null;
+}
+
+export type StreamStatus = 'conectando' | 'ao-vivo' | 'reconectando' | 'atrasado' | 'erro';
+export interface HealthResponse {
+  status: 'ok' | 'degraded'; rpcConnected: boolean; lastBlockNumber: number | null; uptimeSeconds: number;
+}
+
+export interface LatestBlockResponse {
+  blockNumber: number; blockTimestampUtc: string; baseFeeGwei: number;
+  nextBaseFeeGwei: number; priorityFeeGwei: number; gasUsed: number;
+  gasLimit: number; gasUsedRatio: number; txCount: number; burnedEth: number;
+  ethUsd: number; dataAgeSeconds: number; source: 'cold';
+}
+export interface MempoolNowResponse {
+  sampledAtUtc: string; blockNumber: number; pendingBlockTxCount: number;
+  baseFeeGwei: number; prioritySlowGwei: number; priorityStandardGwei: number;
+  priorityFastGwei: number; ethUsd: number;
+}
+export interface FeeEstimateResponse {
+  operation: string; speed: string; gasUnits: number; totalFeeGwei: number;
+  totalFeeUsd: number; lastSampledAtUtc: string;
+}
+export interface FeeEstimateDailyResponse {
+  bucket: string; operation: string; speed: string; samples: number;
+  usdAvg: number; usdMin: number; usdMax: number; usdP50: number; usdP90: number;
+}
 export interface ComponentStatusResponse {
-  component: string;
-  status: string;
-  lagMs: number;
-  lastBlock: number;
-  detail: string;
-  lastSeenAtUtc: string;
-  secondsSinceLastSeen: number;
+  component: string; status: string; lagMs: number; lastBlock: number;
+  detail: string; lastSeenAtUtc: string; secondsSinceLastSeen: number;
 }
-
-export interface StatusResponse {
-  coldPath: 'up' | 'down';
-  components: ComponentStatusResponse[];
-}
+export interface StatusResponse { coldPath: 'up' | 'down'; components: ComponentStatusResponse[] }

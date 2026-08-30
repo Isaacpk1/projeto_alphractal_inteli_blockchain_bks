@@ -1,9 +1,26 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Alphractal · Fees</title>
+    <!-- Estampa o tema salvo ANTES do primeiro paint — sem flash de tema errado.
+         O padrão é dark: a identidade visual da Alphractal (RF-31). -->
+    <script>
+      try {
+        var prefs = JSON.parse(localStorage.getItem('af-prefs') || '{}');
+        document.documentElement.dataset.theme =
+          prefs.theme === 'light' ? 'light' : 'dark';
+      } catch (e) {
+        /* storage bloqueado — fica no dark padrão */
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <div id="root"></div>
