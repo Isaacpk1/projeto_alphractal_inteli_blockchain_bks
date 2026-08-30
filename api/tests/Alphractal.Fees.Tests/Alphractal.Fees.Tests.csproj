@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Alphractal.Fees.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!--
+      "0 testes executados" NAO pode sair como sucesso. Ja aconteceu: uma politica
+      de App Control bloqueou o carregamento deste assembly, o VSTest nao
+      descobriu teste nenhum e o `dotnet test` respondeu exito. Um falso verde
+      vale menos que um vermelho — pelo menos o vermelho e investigado.
+    -->
+    <TreatNoTestsAsError>true</TreatNoTestsAsError>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Se o restore reclamar de alguma versao, o mais rapido e:
+        dotnet add tests/Alphractal.Fees.Tests package <pacote>
+    -->
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Alphractal.Fees.Api/Alphractal.Fees.Api.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -43,7 +43,7 @@ Por isso a arquitetura se divide em dois caminhos independentes:
                     históricas        │          └────────────┬─────────────┘
                           ┌───────────┴───────┐               ▼
                           │  .NET  /api/...   │◀────────  ClickHouse
-                          └───────────────────┘         (materialized views)
+                          └───────────────────┘         (rollups idempotentes)
 ```
 
 **Caminho quente** — tudo que o painel mostra ao vivo. Nunca toca em Python nem em ClickHouse.
@@ -63,7 +63,7 @@ Isso reforça a **RN-14** (o banco não serve tempo real), que já estava na esp
 | Regras de negócio | RN-01 a RN-05, usando `System.Numerics.BigInteger` |
 | Janela quente | Ring buffer em memória, 300 blocos (RN-10) |
 | Fan-out para N clientes | `System.Threading.Channels.Channel<T>` — um produtor (RPC), N consumidores (SSE) |
-| Transporte ao painel | SSE em **controller MVC**, action retornando `IAsyncEnumerable<T>` com `Content-Type: text/event-stream` |
+| Transporte ao painel | SSE em **controller MVC**, com o enquadramento `data: {...}` escrito na resposta e `flush` por evento. Devolver `IAsyncEnumerable<T>` da action **não** funciona: o MVC serializa como array JSON e o `EventSource` nunca dispara `onmessage` |
 | Consultas históricas | Leitura no ClickHouse via `ClickHouse.Client` |
 | Spool para o ETL | Escrita append-only de NDJSON, fora do caminho crítico (RNF-25) |
 
@@ -105,7 +105,7 @@ Avaliamos fila (RabbitMQ/Redis) e escrita direta do .NET no ClickHouse. Para um 
 3. **Sobrevive a queda de qualquer lado** — se o Python cair, os arquivos se acumulam e são processados depois. Se o .NET cair, o Python continua drenando o que já existe.
 4. **É literalmente um ETL** — extract (arquivo), transform (Python), load (ClickHouse). Fácil de defender e de desenhar no slide.
 
-**Convenção:** `.NET` escreve `spool/pending/blocks-YYYYMMDD-HHMM.ndjson`, fecha o arquivo ao virar o minuto e move para `spool/ready/`. O Python processa apenas o que está em `ready/` e move para `processed/` após confirmação do insert. Um arquivo por minuto ≈ 5 blocos por lote.
+**Convenção:** `.NET` escreve em `spool/pending/`, fecha um lote NDJSON e o move atomicamente para `spool/ready/`. O Python faz claim em `processing/`, valida o arquivo inteiro e move para `processed/` apenas após confirmação durável do insert. Erro de contrato vai para `failed/`; erro transitório permanece em `processing/` para retry.
 
 ---
 
@@ -123,7 +123,7 @@ Detalhamento completo em [04 — Persistência](./04-persistencia-banco-de-dados
 
 - **Tipos nativos para wei** (`UInt64`, `UInt256`) — some a gambiarra de guardar wei como `TEXT`.
 - **Retenção declarativa** — `TTL block_time + INTERVAL 30 DAY` na definição da tabela. A RN-15 vira configuração, não job.
-- **Agregação declarativa** — *materialized views* com `AggregatingMergeTree` mantêm os rollups horários automaticamente. O RF-37 deixa de ser código. E `quantile()` nativo torna **D-02 (percentil) e D-04 (heatmap) quase triviais** — eram os diferenciais mais caros da lista.
+- **Agregação nativa** — o ETL recalcula somente os buckets afetados usando `quantileExact()` e grava novas versões em `ReplacingMergeTree`. Isso evita a dupla contagem que uma materialized view incremental causaria após reprocessamento ou reorg.
 
 **Honestidade sobre dimensionamento:** 216 mil linhas por mês. ClickHouse é projetado para bilhões. Tecnicamente é desproporcional — mas o critério aqui é alinhamento com a infraestrutura do parceiro, e o ganho em D-02/D-04 é real.
 
@@ -149,11 +149,11 @@ Quatro tecnologias e quatro runtimes (TypeScript, C#, Python, SQL) em ~2 semanas
 | **RN-06** (precisão) | `System.Numerics.BigInteger` no .NET; `UInt256`/`UInt64` no ClickHouse. Some a regra de guardar wei como `TEXT` |
 | **RN-08 / RN-16** (reorg) | De `UPSERT` para `ReplacingMergeTree` + coluna de versão, com dedup assíncrona |
 | **RN-15** (retenção) | Vira `TTL` declarativo na tabela |
-| **RF-37** (agregados) | Vira *materialized view*, não código |
+| **RF-37** (agregados) | Recomputação idempotente dos buckets afetados pelo ETL |
 | **RNF-13** (tipagem) | `TypeScript strict` no front; `<Nullable>enable</Nullable>` + warnings como erro no .NET; `mypy` no Python |
 | **RNF-22** (execução local) | `docker-compose` deixa de ser opcional — ClickHouse exige container |
 | **R-03** (precisão float) | **Risco praticamente eliminado** pelo `BigInteger` nativo |
-| **D-02 / D-04** | Esforço cai bastante — `quantile()` nativo e materialized views |
+| **D-02 / D-04** | Esforço cai bastante — agregações e `quantileExact()` nativos |
 
 ## 6. Como classificar o ClickHouse nesta arquitetura
 
@@ -193,7 +193,7 @@ A divisão em dois caminhos é uma **arquitetura Lambda** simplificada:
 | Camada Lambda | Nosso componente | Responde |
 |---|---|---|
 | **Speed layer** (velocidade) | Janela de 300 blocos em memória no .NET | "o que está acontecendo agora?" |
-| **Batch layer** (lote) | ClickHouse + materialized views | "o que aconteceu nos últimos 30 dias?" |
+| **Batch layer** (lote) | ClickHouse + rollups idempotentes | "o que aconteceu nos últimos 30 dias?" |
 | **Serving layer** (serviço) | API .NET (`Controllers/`), que consulta as duas | unifica para o painel |
 
 Resposta completa para a banca: *ClickHouse é a batch/serving layer de uma arquitetura Lambda, operando como base de real-time analytics para o caminho frio.*
@@ -217,10 +217,10 @@ Confirmar na dúvida 21 antes de escrever a classificação no relatório final 
 
 | # | Assunto | Estado |
 |---|---|---|
-| 12 | SSE vs **SignalR** — o TAP recomenda SSE; SignalR é o idiomático em .NET | Aberta |
+| 12 | SSE vs **SignalR** — o TAP recomenda SSE; SignalR é o idiomático em .NET | Encerrada — **SSE**, implementado e em produção local |
 | 21 | Instância de **ClickHouse**: deles ou Docker local? | Aberta — ver §8 (afeta também a classificação em §6) |
-| 22 | Versão e convenções de **.NET** / template MVC | Parcial — MVC confirmado, resto aberto |
-| 23 | **Nethereum**: já usam? Há código de referência? | Aberta — maior risco de cronograma (R-13) |
+| 22 | Versão e convenções de **.NET** / template MVC | Encerrada — .NET 10, Web API com Controllers ([ADR-001](../adr/001-mvc-sem-views.md)) |
+| 23 | **Nethereum**: já usam? Há código de referência? | Encerrada na prática — ingestão `newHeads` funcionando; ver §9 |
 | 24 | Padrão de **ETL em Python** (orquestrador, convenções) | Encerrada — pipeline próprio, ver §1 |
 | 25 | Divisão **.NET × Python** | Encerrada — confirma esta arquitetura |
 | 28 | Convenções específicas de MVC (pastas, DI, validação) | Nova |
@@ -232,3 +232,89 @@ O parceiro disse *"salva no banco deles, ClickHouse"*. Gravar diretamente na ins
 **Decisão adotada até o kick-off:** ClickHouse **local via Docker**, com schema espelhando o padrão de nomes deles. Ao fim do projeto, a carga na instância real é uma troca de string de conexão — que fica a critério da Alphractal executar.
 
 Isso preserva a restrição contratual sem perder o alinhamento. Confirmar na **dúvida 21**.
+
+---
+
+## 9. O que a implementação revelou
+
+Registrado em 29/08/2026, com o caminho quente e o caminho frio funcionando ponta
+a ponta contra a mainnet. Os números abaixo são **medidos**, não estimados.
+
+### Latência real — e o que isso significa para o RNF-01
+
+Latências observadas entre o *timestamp do bloco* e a chegada na API, com a
+Alchemy acessada do Brasil:
+
+| Amostra | Latência |
+|---|---|
+| Primeira conexão | 3,7 s |
+| Regime | 1,4 s · 1,9 s · 2,1 s · 2,2 s · 1,65 s |
+
+O valor de 3,7 s é o custo de estabelecer a conexão e não se repete. Em regime, a
+mediana fica **em torno de 2 s** — e isso é apenas o primeiro trecho: ainda falta
+o SSE até o navegador e a renderização.
+
+**O ponto que a banca vai cobrar:** esse número mede `timestamp do bloco → API`. O
+timestamp é o início do *slot* na Ethereum, não o instante em que o bloco foi
+propagado. Entre um e outro existem a propagação na rede P2P, o processamento da
+Alchemy e a viagem até o Brasil — **nada disso está sob controle do projeto**.
+Otimizar o código não muda esse número.
+
+Consequência prática: o RNF-01 ("menos de 2 s entre o bloco e a tela") tem um
+**piso externo de ~1,5 a 2 s**. Duas leituras honestas:
+
+1. **Medir o trecho controlável.** O requisito passa a ser "menos de 2 s entre a
+   API receber o bloco e o painel exibir" — que é onde as decisões de arquitetura
+   (memória em vez de banco, SSE em vez de polling) fazem diferença. O campo
+   `deliveryLatencySeconds` de cada snapshot expõe o trecho externo, separado.
+2. **Renegociar o número** com o parceiro, apresentando a medição.
+
+A escolha entre as duas é do time, mas precisa ser feita antes do relatório final,
+e com o dado na mão — não no dia da apresentação.
+
+### Nethereum: o custo previsto se confirmou
+
+A §2 antecipava atrito por falta de exemplos em C#. Onde ele apareceu:
+
+| Atrito | Resolução |
+|---|---|
+| Pacote `Nethereum.JsonRpc.WebSocketStreamingClient` não existe | É o *namespace*; o pacote é `Nethereum.JsonRpc.WebSocketClient` |
+| `EthNewBlockHeadersObservableSubscription` não compila | Vive em pacote próprio: `Nethereum.RPC.Reactive` |
+| `FeeHistory` recusa `HexBigInteger` e `double[]` | Assinatura pede `BlockParameter` e `decimal[]` |
+| **`Newtonsoft.Json` 11.0.2 com CVE de gravidade alta** | Dependência transitiva da Nethereum 6.1.0. Sobreposto para 13.0.3 no `.csproj` — o `NU1903` reprovou o restore por causa de `TreatWarningsAsErrors`, e o gate funcionou como devia |
+
+Nenhum foi erro de lógica: todos foram assinatura de biblioteca, detectados pelo
+compilador. O risco R-13 se materializou como **horas**, não como dias.
+
+### Contrato entre .NET e Python: passou de primeira
+
+O NDJSON escrito pela API foi validado pelo contrato estrito do ETL sem nenhum
+arquivo em `failed/`. A conferência que prova ausência de perda: **17 linhas por
+bloco** (1 do bloco + 15 estimativas de 5 operações × 3 velocidades + 1 de
+cotação), e 6 blocos por minuto fecham lotes de 102 linhas.
+
+Dois cuidados que se mostraram necessários na prática:
+
+- **Wei sai como número JSON cru**, sem passar por `double` nem `ulong`.
+  `burned_wei` excede 2⁶⁴ em pico; a coluna é `UInt128` e o `int()` do Python não
+  tem limite. Converter para `ulong` quebraria silenciosamente em rede congestionada.
+- **Latência de heartbeat vai com piso zero.** O contrato rejeita inteiro unsigned
+  negativo, e rejeição manda o **arquivo inteiro** para `failed/`. Um relógio
+  dessincronizado levaria os blocos junto com o heartbeat.
+
+### Cotação ETH/USD
+
+O CoinGecko passou a exigir chave e responde **403** no endpoint público. A fonte
+padrão é a Coinbase (`data.amount`), e tanto a URL quanto o caminho do JSON são
+configuração — trocar de provedor são duas linhas, sem deploy.
+
+Sem cotação, o bloco **não vai para o spool**: `eth_usd` é obrigatório no contrato
+e gravar zero corromperia as métricas financeiras. `Fees:FallbackEthUsd` permite
+declarar um valor explícito, e a coluna `source` registra a procedência real.
+
+### Infraestrutura: a API entrou no compose
+
+Motivada por um bloqueio concreto — o Smart App Control do Windows barra binários
+recém-compilados e impediu `dotnet test` numa das máquinas do time. Efeito
+colateral bom: a demo inteira passou a caber em `docker compose up`, e os quatro
+donos de pasta rodam o sistema idêntico sem depender do SDK local.

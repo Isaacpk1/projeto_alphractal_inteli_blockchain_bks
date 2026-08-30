@@ -1,126 +1,133 @@
-import json
-import os
+from __future__ import annotations
+
+import argparse
+import logging
 import sys
-from datetime import datetime, timezone
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-from alphractal_etl.alchemy_client import get_block_number, get_fee_history, get_blocks
-from alphractal_etl.processor.fees import estimate_fees, unix_to_iso
-from alphractal_etl.processor.projection import project_next_base_fee, trend_label
+from alphractal_etl.backfill.runner import BackfillConfig, run_backfill
+from alphractal_etl.config import EtlConfig
+from alphractal_etl.spool import Spool, SpoolError
+from alphractal_etl.writer import ClickHouseWriter
 
-BLOCK_COUNT = 10
-REWARD_PERCENTILES = [10, 25, 50, 90]
+LOGGER = logging.getLogger("alphractal_etl")
+
+
+def process_cycle(config: EtlConfig, writer: ClickHouseWriter) -> tuple[int, int, int]:
+    spool = Spool(config.spool_path)
+    files = spool.claim_all()
+    processed_files = 0
+    failed_files = 0
+    inserted_rows = 0
+    last_block = 0
+
+    for claimed in files:
+        try:
+            batches = spool.read(claimed)
+        except SpoolError as exc:
+            failed_files += 1
+            reason = f"{type(exc).__name__}: {exc}"
+            spool.reject(claimed, reason)
+            LOGGER.error("contrato invalido enviado para failed: %s", claimed.original_name)
+            continue
+
+        block_rows = batches.get("eth_blocks", [])
+        if block_rows:
+            last_block = max(last_block, max(int(row[0]) for row in block_rows))
+        # Falha de infraestrutura nao e defeito do arquivo: ele permanece em
+        # processing para retry no proximo ciclo.
+        inserted_rows += writer.insert_batches(batches)
+        spool.complete(claimed)
+        processed_files += 1
+        LOGGER.info("arquivo processado: %s", claimed.original_name)
+
+    status = "degraded" if failed_files else "ok"
+    detail = f"files={processed_files}; failed={failed_files}; rows={inserted_rows}" if files else "idle"
+    writer.write_health(status, detail, last_block=last_block)
+    return processed_files, failed_files, inserted_rows
+
+
+def run(config: EtlConfig, watch: bool) -> int:
+    writer = ClickHouseWriter(config)
+    try:
+        writer.ping()
+        while True:
+            try:
+                processed, failed, rows = process_cycle(config, writer)
+                LOGGER.info("ciclo concluido: files=%d failed=%d rows=%d", processed, failed, rows)
+                if not watch:
+                    return 1 if failed else 0
+            except Exception as exc:
+                LOGGER.exception("falha de infraestrutura; arquivo sera reprocessado")
+                try:
+                    writer.write_health("degraded", f"{type(exc).__name__}: {exc}")
+                except Exception:
+                    LOGGER.exception("nao foi possivel gravar heartbeat degraded")
+                if not watch:
+                    return 1
+            time.sleep(config.poll_seconds)
+    except KeyboardInterrupt:
+        LOGGER.info("encerrado pelo usuario")
+        return 0
+    finally:
+        writer.close()
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="ETL Alphractal Fees")
+    parser.add_argument("--env-file", type=Path, default=Path(".env"))
+    parser.add_argument("--log-level", default="INFO")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    run_parser = subparsers.add_parser("run", help="drena o spool para o ClickHouse")
+    run_parser.add_argument("--watch", action="store_true", help="continua monitorando o spool")
+
+    backfill_parser = subparsers.add_parser("backfill", help="gera arquivos de spool historicos")
+    backfill_parser.add_argument("--from-block", type=int, required=True)
+    backfill_parser.add_argument("--to-block", type=int, required=True)
+    backfill_parser.add_argument("--eth-usd", required=True, help="preco ETH/USD da janela")
+    backfill_parser.add_argument(
+        "--batch-size", type=int, default=100,
+        help="blocos por chamada RPC (1-1024). Lotes grandes arrastam: cada bloco "
+             "traz a lista de hashes de transacao")
+    backfill_parser.add_argument(
+        "--blocks-per-file", type=int, default=0,
+        help="blocos por arquivo de spool (>= batch-size). Arquivos maiores = menos "
+             "INSERTs no ClickHouse. 0 usa o batch-size")
+    backfill_parser.add_argument(
+        "--pausa-lote", type=float, default=0.0, dest="pausa_lote",
+        help="segundos entre requisicoes RPC. O limite da Alchemy e por SEGUNDO: "
+             "sem ritmo, uma rajada estoura mesmo com poucos lotes")
+    return parser
 
 
 def main() -> None:
-    load_dotenv()
-    api_key = os.environ.get("ALCHEMY_API_KEY", "")
-    output_dir = Path(os.environ.get("OUTPUT_PATH", "./output"))
-
-    if not api_key:
-        print("Error: ALCHEMY_API_KEY not set in .env", file=sys.stderr)
-        sys.exit(1)
-
-    print("Fetching latest block number...")
-    latest = get_block_number()
-    print(f"  Latest block: {latest}")
-
-    print(f"Fetching fee history for last {BLOCK_COUNT} blocks...")
-    fee_history = get_fee_history(BLOCK_COUNT, REWARD_PERCENTILES)
-
-    oldest = fee_history["oldest_block"]
-    base_fees = fee_history["base_fee_per_gas"]
-    gas_ratios = fee_history["gas_used_ratio"]
-    rewards = fee_history["reward"]
-
-    print(f"  History window: {oldest} -> {latest}")
-
-    block_numbers = list(range(oldest, latest + 1))
-    print(f"Fetching block details for {len(block_numbers)} blocks...")
-    blocks_data = get_blocks(block_numbers)
-
-    blocks_out = []
-    for i, block in enumerate(blocks_data):
-        entry = {
-            "block_number": block["number"],
-            "hash": block["hash"],
-            "timestamp": unix_to_iso(block["timestamp"]),
-            "base_fee_per_gas_wei": block["base_fee_per_gas"],
-            "gas_used": block["gas_used"],
-            "gas_limit": block["gas_limit"],
-            "tx_count": block["tx_count"],
-        }
-        if i < len(rewards) and rewards[i]:
-            entry["priority_fee_p10_wei"] = rewards[i][0]
-            entry["priority_fee_p25_wei"] = rewards[i][1]
-            entry["priority_fee_p50_wei"] = rewards[i][2]
-            entry["priority_fee_p90_wei"] = rewards[i][3]
-        blocks_out.append(entry)
-
-    latest_reward = rewards[-1] if rewards else [0, 0, 0, 0]
-    current_base_fee = base_fees[-1]
-
-    priority_fees = {
-        "p10_wei": latest_reward[0],
-        "p25_wei": latest_reward[1],
-        "p50_wei": latest_reward[2],
-        "p90_wei": latest_reward[3],
-    }
-
-    by_operation = estimate_fees(current_base_fee, latest_reward)
-
-    latest_block = blocks_out[-1]
-    next_base_fee = project_next_base_fee(
-        current_base_fee,
-        latest_block["gas_used"],
-        latest_block["gas_limit"],
+    parser = build_parser()
+    args = parser.parse_args()
+    load_dotenv(args.env_file)
+    logging.basicConfig(
+        level=getattr(logging, args.log_level.upper(), logging.INFO),
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
-
-    avg_base_fee = sum(base_fees[:BLOCK_COUNT]) // BLOCK_COUNT
-    trend = trend_label(current_base_fee, avg_base_fee)
-
-    avg_gas_ratio = (
-        sum(gas_ratios) / len(gas_ratios) if gas_ratios else 0.0
-    )
-
-    output = {
-        "meta": {
-            "generated_at": unix_to_iso(
-                int(datetime.now(timezone.utc).timestamp())
-            ),
-            "blocks_analyzed": len(blocks_out),
-            "current_block": latest,
-            "source": "Alchemy Ethereum Mainnet",
-        },
-        "fee_estimates": {
-            "priority_fee_percentiles": priority_fees,
-            "recommended_priority_fee_wei": priority_fees["p50_wei"],
-            "by_operation": by_operation,
-        },
-        "network_status": {
-            "base_fee_trend": trend,
-            "current_base_fee_wei": current_base_fee,
-            "next_base_fee_projection_wei": next_base_fee,
-            "avg_gas_used_ratio_10blocks": round(avg_gas_ratio, 4),
-        },
-        "blocks": blocks_out,
-    }
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    out_path = output_dir / "current_state.json"
-    out_path.write_text(
-        json.dumps(output, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
-
-    print(f"\nOutput written to: {out_path}")
-    print(f"  Current block       : {latest}")
-    print(f"  Base fee            : {current_base_fee / 1e9:.2f} gwei")
-    print(f"  Next base fee proj  : {next_base_fee / 1e9:.2f} gwei ({trend})")
-    print(f"  Rec. priority fee   : {priority_fees['p50_wei'] / 1e9:.2f} gwei")
-    print(f"  Avg gas used ratio  : {avg_gas_ratio:.2%}")
+    try:
+        if args.command == "run":
+            raise SystemExit(run(EtlConfig.from_env(), watch=args.watch))
+        config = BackfillConfig.from_values(
+            from_block=args.from_block,
+            to_block=args.to_block,
+            eth_usd=args.eth_usd,
+            batch_size=args.batch_size,
+            blocks_per_file=args.blocks_per_file,
+            intervalo_minimo=args.pausa_lote,
+        )
+        generated = run_backfill(config)
+        LOGGER.info("backfill concluido: %d arquivos", len(generated))
+    except ValueError as exc:
+        LOGGER.error("configuracao invalida: %s", exc)
+        sys.exit(2)
 
 
 if __name__ == "__main__":

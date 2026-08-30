@@ -2,4 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Alphractal.Fees.Api/Alphractal.Fees.Api.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Alphractal.Fees.Tests/Alphractal.Fees.Tests.csproj" />
+  </Folder>
 </Solution>

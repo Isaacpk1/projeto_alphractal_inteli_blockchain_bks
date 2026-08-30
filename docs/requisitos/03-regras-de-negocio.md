@@ -22,13 +22,25 @@ Derivadas dos percentis de *priority fee* retornados por `eth_feeHistory` sobre 
 
 | Faixa | Percentil | Expectativa |
 |---|---|---|
-| Lento | p25 | inclusão em vários blocos |
+| Lento | p10 | inclusão em vários blocos |
 | Padrão | p50 | próximos blocos |
 | Rápido | p90 | próximo bloco |
 
 **Janela:** `N_fee = 20 blocos` (≈4 min) — responde rápido a mudanças sem oscilar a cada bloco isolado.
 
-*Definido pelo time: o parceiro deu liberdade explícita nas faixas ("sejam livres", 18/08 — [doc 10](./10-registro-respostas-parceiro.md)). Percentis e janela são **configuráveis**, porque o parceiro sinalizou que "depois a gente manda alguma coisa".*
+**Consolidação da janela:** o `eth_feeHistory` devolve os três percentis *por bloco*. A faixa exibida é a **mediana** de cada coluna ao longo dos 20 blocos, não a média: um único bloco com gorjeta atípica (bot de MEV, liquidação) desloca a média e faria o painel sugerir um preço que ninguém precisa pagar.
+
+*Definido pelo time: o parceiro deu liberdade explícita nas faixas ("sejam livres", 18/08 — [doc 10](./10-registro-respostas-parceiro.md)). Percentis e janela são **configuráveis** (`Fees:Percentiles` e `Fees:FeeWindowBlocks`), porque o parceiro sinalizou que "depois a gente manda alguma coisa".*
+
+> **Por que p10 e não p25.** Versões anteriores deste documento diziam p25. O
+> schema do ClickHouse (`priority_fee_p10`), o contrato do ETL e o backfill foram
+> escritos em p10, e a divergência só apareceu quando a API foi implementada.
+> Fixamos em **p10** porque o custo de mudar é assimétrico: alinhar o documento é
+> uma linha, alinhar o schema exige recriar o volume do banco. A escolha é do time
+> e revisável — se a Alphractal pedir p25, trocar é editar `Fees:Percentiles` e a
+> coluna correspondente. O trade-off real: p10 mostra o piso do mercado e separa
+> bem as três faixas no painel, mas "Lento" pode demorar dezenas de minutos em
+> congestionamento; p25 é mais fiel ao rótulo e mais próximo do p50 em rede calma.
 
 ### RN-03 — Conversão para USD
 
@@ -83,11 +95,29 @@ Compara a `baseFee` atual com a média móvel dos últimos **`N_cong = 100` bloc
 
 ### RN-05 — Projeção da base fee do próximo bloco
 
-Regra determinística do protocolo, não previsão estatística:
+Regra determinística do protocolo, não previsão estatística. O valor é **exato**, não uma estimativa.
 
-- `gasUsed > gasLimit / 2` → base fee sobe, no máximo **+12,5%**
-- `gasUsed < gasLimit / 2` → base fee cai, no máximo **−12,5%**
-- `gasUsed = gasLimit / 2` → base fee permanece
+Seja `alvo = gasLimit / 2`:
+
+```
+gasUsed = alvo  →  próxima = baseFee
+gasUsed > alvo  →  próxima = baseFee + max(baseFee × (gasUsed − alvo) / alvo / 8, 1 wei)
+gasUsed < alvo  →  próxima = baseFee − baseFee × (alvo − gasUsed) / alvo / 8
+```
+
+> **Atenção — versões anteriores deste documento descreviam a regra como "sobe no
+> máximo +12,5%", e isso induz a implementação errada.** Os 12,5% são o **limite**,
+> atingido apenas quando o bloco usa *todo* o gas disponível; a variação real é
+> **proporcional** ao quanto o gas usado se afasta do alvo. Um bloco a 3/4 do
+> limite sobe 6,25%, não 12,5%. Implementar ao pé da letra da redação antiga
+> erraria a projeção em todo bloco que não fosse completamente cheio ou
+> completamente vazio — ou seja, em praticamente todos.
+
+O incremento mínimo de 1 wei na subida é parte do protocolo: sem ele, base fees
+muito baixas arredondariam o delta para zero e nunca reagiriam a congestionamento.
+
+Toda a aritmética é feita em inteiros (`BigInteger`), como manda a RN-06 — a
+divisão por 8 é inteira, exatamente como na especificação do EIP-1559.
 
 ### RN-07 — Dado obsoleto (*stale*)
 
@@ -134,11 +164,17 @@ Ao conectar no SSE, o cliente recebe o último snapshot conhecido **antes** de e
 
 ### RN-15 — Retenção
 
-| Dado | Retenção |
-|---|---|
-| Blocos brutos (tabela `blocks`) | **30 dias**, por `TTL` declarativo |
-| Agregados horários (`fee_stats_hourly`) | indefinidamente |
-| Agregados diários (`fee_stats_daily`) | indefinidamente |
+| Dado | Tabela | Retenção |
+|---|---|---|
+| Blocos brutos | `eth_blocks` | **30 dias**, por `TTL` declarativo |
+| Estimativas de custo | `fee_estimates` | 30 dias |
+| Amostras de mempool | `mempool_samples` | 7 dias |
+| Cotação ETH/USD | `eth_usd_prices` | 90 dias |
+| Saúde da ingestão | `ingestion_health` | 14 dias |
+| Agregados horários e diários | `eth_fees_rollup` (coluna `granularity`) | indefinidamente |
+| Custo diário por operação | `fee_estimates_1d` | indefinidamente |
+
+*Os nomes acima são os do schema real, em [`infra/clickhouse/initdb/`](../../infra/clickhouse/initdb/). Versões anteriores desta regra citavam `blocks`, `fee_stats_hourly` e `fee_stats_daily`, que nunca existiram com esses nomes.*
 
 **Por que 30 dias e não 7:** o D-02 exige percentil sobre janela de 30 dias, e o TAP não impõe limite de armazenamento. A 216 mil linhas/mês, 30 dias de dado bruto é irrelevante em disco. A versão anterior desta regra dizia 7 dias enquanto o DDL usava 90 e a consulta do D-02 usava 30 — três valores para a mesma decisão. **Valor único: 30 dias.**
 

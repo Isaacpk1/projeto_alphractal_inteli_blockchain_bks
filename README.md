@@ -32,8 +32,8 @@ Alchemy ──WebSocket──▶ .NET (MVC)            .NET ──spool NDJSON�
                         ├─ Nethereum                                     │
                         ├─ regras RN-01..05                              ▼
                         ├─ 300 blocos em RAM                        ClickHouse
-                        └─ fan-out Channel<T>                     (materialized
-                              │ SSE                                   views)
+                        └─ broadcaster SSE                       (rollups
+                              │                                    idempotentes)
                               ▼                                          │
                         React (painel)  ◀──── /api/history ── .NET ◀──────┘
 ```
@@ -85,9 +85,9 @@ A especificação completa está em **[`docs/requisitos/`](./docs/requisitos/REA
 
 ## Como rodar
 
-> Ainda não implementado — o desenvolvimento começa após o kick-off de 14/09/2026.
-
-A execução local será por `docker-compose up`, com quatro componentes (React, .NET, Python, ClickHouse). Instruções completas entram aqui quando o código existir.
+O ClickHouse local sobe por `infra/docker-compose.yml`. O ETL é instalado como
+pacote Python e drena o spool em ciclos; consulte [`etl/README.md`](./etl/README.md).
+API e painel ainda estão em implementação.
 
 ## Escopo — o que este projeto **não** é
 

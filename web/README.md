@@ -81,16 +81,16 @@ nunca. Verificação: React DevTools Profiler, como o RNF-03 manda.
 
 Detalhes e alternativas descartadas na [ADR-002](../docs/adr/002-arquitetura-frontend.md).
 
-## A API ainda não existe — modo mock
+## API real e modo mock
 
-Por padrão o front roda com `MockFeesTransport` ([src/lib/mock/](src/lib/mock/)):
-uma simulação da Mainnet com a regra do EIP-1559 de verdade, um bloco a cada
-12 s, hidratação, histórico e insights. O store não sabe que é mock — a troca
-para a API real é **uma variável de ambiente**:
+Por padrão o front usa `HttpFeesTransport` e consome snapshot, SSE, histórico,
+cotação e queima da API .NET. Para uma demonstração offline, há uma simulação
+da Mainnet em [src/lib/mock/](src/lib/mock/) com a regra do EIP-1559 e um bloco
+a cada 12 s. A troca é feita por variável de ambiente:
 
 ```bash
 # .env
-VITE_USE_MOCK=false   # passa a falar com a API .NET nos endpoints de lib/api.ts
+VITE_USE_MOCK=true   # ativa o mock; ausente ou false usa a API real
 ```
 
 Para testar os estados do RF-26/RF-32 sem esperar a rede cair, no console do
@@ -108,19 +108,19 @@ lados.** Campo renomeado no C# e não renomeado aqui = tela quebrada em runtime,
 sem erro de build em lugar nenhum. Regra: mudou o DTO na API, muda aqui **no
 mesmo PR** — é para isso que as duas pastas estão no mesmo repositório.
 
-O contrato atual do front é a **proposta** para o time da API — os DTOs de
-`contract.ts` cobrem todos os RF *Must* do painel (faixas, congestionamento,
-cotação, estimativas por tipo de transação, histórico).
+Os DTOs reais ficam separados dos modelos de tela em `contract.ts`; o adaptador
+em `lib/transport.ts` traduz velocidades, estimativas, histórico e cotação sem
+espalhar detalhes do backend pelos componentes.
 
 ## Rodar
 
 ```bash
 cd web
 npm install
-npm run dev          # http://localhost:5173 — abre já funcionando, com mock
+npm run dev          # http://localhost:5173 — usa a API real
 ```
 
-Com `VITE_USE_MOCK=false`, o Vite faz proxy de `/api` para
+Com `VITE_USE_MOCK=false` (padrão), o Vite faz proxy de `/api` para
 `http://localhost:5080` (sem CORS, SSE sem buffering) e requer a API de
 [`api/`](../api/README.md) no ar.
 

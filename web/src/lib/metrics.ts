@@ -42,7 +42,7 @@ export const METRICS: readonly MetricDef[] = [
     nav: 'Total Fees',
     label: 'Total Fees (ETH)',
     description:
-      'Soma de todas as taxas pagas na rede no intervalo. Escala com o volume de transações — mede receita de validadores e segurança econômica da rede.',
+      'Estimativa das taxas pagas na rede no intervalo, recomposta da base fee queimada e da priority fee média do rollup.',
     csvHeader: 'total_fees_eth',
     format: fmtCompactEth,
     formatAxis: fmtCompactNum,
@@ -53,7 +53,7 @@ export const METRICS: readonly MetricDef[] = [
     nav: 'Total Fees (USD)',
     label: 'Total Fees (USD)',
     description:
-      'A mesma soma, convertida a dólar. Mistura dois efeitos: mais taxa ou ETH mais caro. Um pico aqui sem pico na série em ETH é valorização do ativo, não congestionamento.',
+      'A mesma estimativa, convertida a dólar. Mistura dois efeitos: mais taxa ou ETH mais caro.',
     csvHeader: 'total_fees_usd',
     format: fmtCompactUsd,
     formatAxis: fmtCompactUsd,
@@ -64,7 +64,7 @@ export const METRICS: readonly MetricDef[] = [
     nav: 'Mean Tx Fee',
     label: 'Mean Tx Fee (ETH)',
     description:
-      'Taxa média por transação (total de taxas ÷ nº de transações). Responde quanto custou para um usuário — mede congestionamento e experiência de uso.',
+      'Estimativa da taxa média por transação (taxas estimadas ÷ nº de transações).',
     csvHeader: 'mean_tx_fee_eth',
     format: fmtEth,
     formatAxis: fmtCompactNum,

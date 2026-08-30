@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alphractal-etl"
+version = "0.1.0"
+description = "ETL do caminho frio do modulo Alphractal Fees"
+requires-python = ">=3.11"
+dependencies = [
+  "clickhouse-connect>=0.8",
+  "python-dotenv>=1.0",
+  "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = ["mypy>=1.11", "pytest>=8.0", "types-requests>=2.31"]
+
+[project.scripts]
+alphractal-etl = "alphractal_etl.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["alphractal_etl"]
