@@ -8,6 +8,7 @@ GRANT SELECT ON alphractal.v_eth_fees_1h TO alphractal_api;
 GRANT SELECT ON alphractal.v_eth_fees_1d TO alphractal_api;
 GRANT SELECT ON alphractal.v_fee_estimates_1d TO alphractal_api;
 GRANT SELECT ON alphractal.v_ingestion_status TO alphractal_api;
+GRANT SELECT ON alphractal.v_base_fee_percentiles_30d TO alphractal_api;
 
 CREATE USER IF NOT EXISTS alphractal_etl
     IDENTIFIED WITH sha256_password BY 'etl_dev_2026'
@@ -22,3 +23,6 @@ GRANT SELECT, INSERT ON alphractal.eth_usd_prices TO alphractal_etl;
 GRANT SELECT, INSERT ON alphractal.ingestion_health TO alphractal_etl;
 GRANT SELECT, INSERT ON alphractal.eth_fees_rollup TO alphractal_etl;
 GRANT SELECT, INSERT ON alphractal.fee_estimates_1d TO alphractal_etl;
+GRANT SELECT ON alphractal.v_fees_hora_do_dia TO alphractal_api;
+GRANT SELECT ON alphractal.v_fees_semana_hora TO alphractal_api;
+GRANT SELECT ON alphractal.v_eth_usd_24h TO alphractal_api;
