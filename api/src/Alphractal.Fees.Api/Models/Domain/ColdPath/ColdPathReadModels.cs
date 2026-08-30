@@ -84,6 +84,65 @@ public sealed record ColdFeeEstimateDaily
     public required decimal UsdP90 { get; init; }
 }
 
+/// <summary>
+/// Distribuicao da base fee horaria nos ultimos 30 dias (D-02), em gwei.
+/// </summary>
+/// <remarks>
+/// <see cref="Buckets"/> importa: a janela so tem 720 horas quando ha 30 dias de
+/// dado. Com o sistema recem-instalado sao poucas dezenas, e um percentil sobre
+/// 12 horas nao responde "esta caro historicamente?" — responde "esta caro hoje
+/// de manha?". Quem consome precisa poder distinguir os dois casos.
+/// </remarks>
+public sealed record ColdBaseFeeDistribution
+{
+    public required ulong Buckets { get; init; }
+    public required DateTimeOffset FromBucket { get; init; }
+    public required DateTimeOffset ToBucket { get; init; }
+    public required double P05Gwei { get; init; }
+    public required double P10Gwei { get; init; }
+    public required double P25Gwei { get; init; }
+    public required double P50Gwei { get; init; }
+    public required double P75Gwei { get; init; }
+    public required double P90Gwei { get; init; }
+    public required double P95Gwei { get; init; }
+    public required double MinGwei { get; init; }
+    public required double MaxGwei { get; init; }
+}
+
+/// <summary>Media da base fee numa hora do dia (UTC), sobre 30 dias.</summary>
+public sealed record ColdHoraDoDia
+{
+    public required int HoraUtc { get; init; }
+    public required ulong Amostras { get; init; }
+    public required double BaseFeeGweiAvg { get; init; }
+    public required double BaseFeeGweiP50 { get; init; }
+    public required double BaseFeeGweiMin { get; init; }
+    public required double BaseFeeGweiMax { get; init; }
+}
+
+/// <summary>Celula da grade dia-da-semana x hora. <c>DiaSemana</c>: 1 = segunda.</summary>
+public sealed record ColdSemanaHora
+{
+    public required int DiaSemana { get; init; }
+    public required int HoraUtc { get; init; }
+    public required ulong Amostras { get; init; }
+    public required double BaseFeeGweiAvg { get; init; }
+}
+
+/// <summary>Cotacao atual e de 24 h atras.</summary>
+/// <remarks>
+/// <see cref="Amostras24h"/> distingue "variou 0%" de "nao ha cotacao de 24 h
+/// atras" — os dois dariam o mesmo numero e significam coisas opostas.
+/// </remarks>
+public sealed record ColdEthUsd24h
+{
+    public required decimal PrecoAtual { get; init; }
+    public required DateTimeOffset ObservadoEm { get; init; }
+    public required decimal Preco24h { get; init; }
+    public required DateTimeOffset ObservadoEm24h { get; init; }
+    public required ulong Amostras24h { get; init; }
+}
+
 public sealed record ColdComponentHealth
 {
     public required string Component { get; init; }

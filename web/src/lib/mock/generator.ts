@@ -192,9 +192,12 @@ export class MockChain {
 
     return {
       blockNumber: head.number,
+      blockHash: `mock-${head.number}`,
       blockTimestampUtc: new Date(head.timestampMs).toISOString(),
       baseFeeGwei: head.baseFeeGwei,
       nextBaseFeeGwei: this.nextBaseFee(head),
+      gasUsed: Math.round(head.gasUsedRatio * GAS_LIMIT),
+      gasLimit: GAS_LIMIT,
       gasUsedRatio: head.gasUsedRatio,
       trend,
       congestion: { level, ratio: congRatio },
@@ -202,6 +205,10 @@ export class MockChain {
       ethUsd: { price: this.ethUsd, change24hPct: this.change24h },
       txEstimates,
       dataAgeSeconds: Math.max(0, (Date.now() - head.timestampMs) / 1000),
+      isStale: false,
+      deliveryLatencySeconds: 0,
+      windowSize: this.blocks.length,
+      source: 'live',
     };
   }
 

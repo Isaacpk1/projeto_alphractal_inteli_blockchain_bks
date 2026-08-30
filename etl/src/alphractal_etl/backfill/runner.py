@@ -20,13 +20,40 @@ class BackfillConfig:
     batch_size: int
     spool_path: Path
     alchemy_api_key: str
+    # Tamanho do lote RPC e tamanho do arquivo de spool sao pressoes OPOSTAS e
+    # por isso viraram dois numeros. O batch de `eth_getBlockByNumber` devolve a
+    # lista de hashes de transacao de cada bloco: mil blocos passam de 15 MB numa
+    # unica resposta e a requisicao arrasta ou estoura o timeout. Ja o arquivo de
+    # spool quer ser grande, porque cada arquivo vira um INSERT no ClickHouse, e
+    # centenas de INSERTs pequenos levam a `TOO_MANY_PARTS` — o erro que o
+    # 09 secao 3 descreve como o numero um de quem chega vindo do Postgres.
+    # Zero mantem o comportamento antigo: um arquivo por lote.
+    blocks_per_file: int = 0
+    # Segundos entre requisicoes. O limite da Alchemy e por SEGUNDO, entao o que
+    # protege e o ritmo, nao o total. Um lote de N blocos custa ~16xN unidades;
+    # no plano gratuito (~330 CU/s) isso da ~20 blocos por segundo.
+    intervalo_minimo: float = 0.0
 
     @classmethod
-    def from_values(cls, from_block: int, to_block: int, eth_usd: str, batch_size: int) -> "BackfillConfig":
+    def from_values(
+        cls,
+        from_block: int,
+        to_block: int,
+        eth_usd: str,
+        batch_size: int,
+        blocks_per_file: int = 0,
+        intervalo_minimo: float = 0.0,
+    ) -> "BackfillConfig":
         if from_block < 0 or to_block < from_block:
             raise ValueError("intervalo de blocos invalido")
         if not 1 <= batch_size <= 1024:
             raise ValueError("batch-size deve estar entre 1 e 1024")
+        if blocks_per_file < 0:
+            raise ValueError("blocks-per-file nao pode ser negativo")
+        if 0 < blocks_per_file < batch_size:
+            raise ValueError("blocks-per-file deve ser >= batch-size")
+        if intervalo_minimo < 0:
+            raise ValueError("pausa-lote nao pode ser negativa")
         try:
             price = Decimal(eth_usd)
         except InvalidOperation as exc:
@@ -40,16 +67,44 @@ class BackfillConfig:
             from_block=from_block, to_block=to_block, eth_usd=price, batch_size=batch_size,
             spool_path=Path(os.getenv("SPOOL_PATH", "../spool")).resolve(),
             alchemy_api_key=api_key,
+            blocks_per_file=blocks_per_file,
+            intervalo_minimo=intervalo_minimo,
         )
 
 
 def run_backfill(config: BackfillConfig, client: AlchemyClient | None = None) -> list[Path]:
     owns_client = client is None
     if client is None:
-        client = AlchemyClient(config.alchemy_api_key)
+        client = AlchemyClient(config.alchemy_api_key, intervalo_minimo=config.intervalo_minimo)
     ready = config.spool_path / "ready"
     ready.mkdir(parents=True, exist_ok=True)
     generated: list[Path] = []
+
+    # Zero = comportamento antigo (um arquivo por lote de RPC).
+    per_file = config.blocks_per_file or config.batch_size
+
+    pendentes: list[str] = []
+    primeiro_bloco: int | None = None
+    ultimo_bloco: int | None = None
+
+    def descarregar() -> None:
+        """Fecha o arquivo corrente, se houver linhas acumuladas."""
+        nonlocal pendentes, primeiro_bloco, ultimo_bloco
+        if not pendentes:
+            return
+        destination = ready / f"backfill-blocks-{primeiro_bloco}-{ultimo_bloco}.ndjson"
+        if destination.exists():
+            raise FileExistsError(f"arquivo de backfill ja existe: {destination}")
+        # Escreve em .tmp e move: o ETL varre apenas *.ndjson em ready/, entao
+        # nunca enxerga um arquivo pela metade. O move e atomico no mesmo volume.
+        temporary = destination.with_suffix(".tmp")
+        temporary.write_text("\n".join(pendentes) + "\n", encoding="utf-8")
+        temporary.replace(destination)
+        generated.append(destination)
+        pendentes = []
+        primeiro_bloco = None
+        ultimo_bloco = None
+
     try:
         start = config.from_block
         while start <= config.to_block:
@@ -63,10 +118,7 @@ def run_backfill(config: BackfillConfig, client: AlchemyClient | None = None) ->
             base_fees = history["base_fee_per_gas"]
             if len(rewards) != len(blocks):
                 raise AlchemyError("reward ausente no backfill")
-            destination = ready / f"backfill-blocks-{start}-{end}.ndjson"
-            if destination.exists():
-                raise FileExistsError(f"arquivo de backfill ja existe: {destination}")
-            lines = []
+
             for index, block in enumerate(blocks):
                 reward = rewards[index]
                 if len(reward) != len(REWARD_PERCENTILES):
@@ -82,12 +134,18 @@ def run_backfill(config: BackfillConfig, client: AlchemyClient | None = None) ->
                     "burned_wei": block["base_fee_per_gas"] * block["gas_used"],
                     "eth_usd": str(config.eth_usd),
                 }
-                lines.append(json.dumps({"table": "eth_blocks", "data": data}, separators=(",", ":")))
-            temporary = destination.with_suffix(".tmp")
-            temporary.write_text("\n".join(lines) + "\n", encoding="utf-8")
-            temporary.replace(destination)
-            generated.append(destination)
+                if primeiro_bloco is None:
+                    primeiro_bloco = block["number"]
+                ultimo_bloco = block["number"]
+                pendentes.append(json.dumps({"table": "eth_blocks", "data": data}, separators=(",", ":")))
+
+            if primeiro_bloco is not None and ultimo_bloco is not None:
+                if ultimo_bloco - primeiro_bloco + 1 >= per_file:
+                    descarregar()
+
             start = end + 1
+
+        descarregar()
     finally:
         if owns_client:
             client.close()

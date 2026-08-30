@@ -34,6 +34,21 @@ public interface IFeesHistoryRepository
 
     Task<IReadOnlyList<ColdComponentHealth>> GetIngestionStatusAsync(CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Distribuicao da base fee nos ultimos 30 dias (D-02). <c>null</c> quando
+    /// nao ha nenhum bucket na janela.
+    /// </summary>
+    Task<ColdBaseFeeDistribution?> GetBaseFeeDistributionAsync(CancellationToken cancellationToken);
+
+    /// <summary>Media da base fee por hora do dia (UTC), 30 dias.</summary>
+    Task<IReadOnlyList<ColdHoraDoDia>> GetHoraDoDiaAsync(CancellationToken cancellationToken);
+
+    /// <summary>Grade dia-da-semana x hora para o heatmap.</summary>
+    Task<IReadOnlyList<ColdSemanaHora>> GetSemanaHoraAsync(CancellationToken cancellationToken);
+
+    /// <summary>Cotacao atual e de 24 h atras. <c>null</c> se nao ha serie.</summary>
+    Task<ColdEthUsd24h?> GetEthUsd24hAsync(CancellationToken cancellationToken);
+
     /// <summary>Ping de diagnostico. <c>false</c> se o banco nao respondeu.</summary>
     Task<bool> PingAsync(CancellationToken cancellationToken);
 }

@@ -2,6 +2,7 @@ using Alphractal.Fees.Api.Models.Domain;
 using Alphractal.Fees.Api.Models.Domain.ColdPath;
 using Alphractal.Fees.Api.Models.Responses;
 using Alphractal.Fees.Api.Repositories;
+using Alphractal.Fees.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Alphractal.Fees.Api.Controllers;
@@ -24,8 +25,13 @@ public sealed class FeesController : ControllerBase
     private const int MaxLimit = 10_000;
 
     private readonly IFeesHistoryRepository _repository;
+    private readonly HotBlockWindow _window;
 
-    public FeesController(IFeesHistoryRepository repository) => _repository = repository;
+    public FeesController(IFeesHistoryRepository repository, HotBlockWindow window)
+    {
+        _repository = repository;
+        _window = window;
+    }
 
     /// <summary>
     /// Ultimo bloco segundo o CAMINHO FRIO. Diagnostico e fallback de
@@ -186,6 +192,193 @@ public sealed class FeesController : ControllerBase
                 UsdP90 = row.UsdP90,
             }).ToList(),
         });
+    }
+
+    /// <summary>
+    /// D-02 — onde a base fee atual esta em relacao aos ultimos 30 dias.
+    /// </summary>
+    /// <remarks>
+    /// Rota do caminho frio, ainda que use o valor ao vivo: a distribuicao vem do
+    /// ClickHouse. Nao entra no payload do SSE — colocaria uma consulta ao banco
+    /// dentro do orcamento de 2 s do RNF-01, violando a RN-14. O painel busca uma
+    /// vez e reusa; a distribuicao de 30 dias nao muda entre blocos.
+    /// </remarks>
+    [HttpGet("percentile")]
+    [ProducesResponseType<HistoricalPositionResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<HistoricalPositionResponse>> GetPercentile(
+        CancellationToken cancellationToken)
+    {
+        var distribution = await _repository.GetBaseFeeDistributionAsync(cancellationToken);
+        if (distribution is null)
+        {
+            return Problem(
+                title: "Sem historico",
+                detail: "Nenhum bucket horario nos ultimos 30 dias. Rode o backfill ou aguarde o ETL acumular.",
+                statusCode: StatusCodes.Status404NotFound);
+        }
+
+        // O valor atual vem da janela quente (memoria), nao do banco: o bloco mais
+        // recente do ClickHouse tem ate ~1 min de atraso e a comparacao ficaria
+        // defasada em relacao ao que o painel mostra ao lado.
+        var current = _window.Latest;
+        if (current is null)
+        {
+            return Problem(
+                title: "Sem bloco ao vivo",
+                detail: "A janela quente esta vazia; nao ha base fee atual para posicionar.",
+                statusCode: StatusCodes.Status404NotFound);
+        }
+
+        var currentGwei = (double)FeeCalculator.ToGwei(current.BaseFeePerGas);
+        var position = HistoricalContext.Position(currentGwei, distribution);
+
+        return Ok(new HistoricalPositionResponse
+        {
+            CurrentBaseFeeGwei = currentGwei,
+            PercentileRank = Math.Round(position.PercentileRank, 1),
+            Label = position.Label,
+            Buckets = position.Buckets,
+            LowConfidence = position.LowConfidence,
+            FromUtc = distribution.FromBucket,
+            ToUtc = distribution.ToBucket,
+            ThresholdsGwei = new Dictionary<string, double>
+            {
+                ["min"] = distribution.MinGwei,
+                ["p05"] = distribution.P05Gwei,
+                ["p10"] = distribution.P10Gwei,
+                ["p25"] = distribution.P25Gwei,
+                ["p50"] = distribution.P50Gwei,
+                ["p75"] = distribution.P75Gwei,
+                ["p90"] = distribution.P90Gwei,
+                ["p95"] = distribution.P95Gwei,
+                ["max"] = distribution.MaxGwei,
+            },
+        });
+    }
+
+    /// <summary>
+    /// "Espero ou executo agora?" — media por hora do dia contra o valor atual.
+    /// </summary>
+    [HttpGet("planejamento")]
+    [ProducesResponseType<RecomendacaoResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<RecomendacaoResponse>> GetPlanejamento(CancellationToken cancellationToken)
+    {
+        var horas = await _repository.GetHoraDoDiaAsync(cancellationToken);
+        if (horas.Count == 0)
+        {
+            return Problem(
+                title: "Sem historico por hora",
+                detail: "O rollup horario esta vazio. Rode o backfill ou aguarde o ETL acumular.",
+                statusCode: StatusCodes.Status404NotFound);
+        }
+
+        var atual = _window.Latest;
+        if (atual is null)
+        {
+            return Problem(
+                title: "Sem bloco ao vivo",
+                detail: "A janela quente esta vazia; nao ha com o que comparar.",
+                statusCode: StatusCodes.Status404NotFound);
+        }
+
+        var gweiAgora = (double)FeeCalculator.ToGwei(atual.BaseFeePerGas);
+        var recomendacao = JanelaDeExecucao.Calcular(gweiAgora, horas, DateTimeOffset.UtcNow);
+        if (recomendacao is null)
+        {
+            return Problem(
+                title: "Historico insuficiente",
+                detail: "Nenhuma hora do dia tem amostra.",
+                statusCode: StatusCodes.Status404NotFound);
+        }
+
+        return Ok(new RecomendacaoResponse
+        {
+            BaseFeeGweiAgora = gweiAgora,
+            MelhorHoraUtc = recomendacao.MelhorHoraUtc,
+            MelhorHoraGwei = recomendacao.MelhorHoraGwei,
+            PiorHoraUtc = recomendacao.PiorHoraUtc,
+            PiorHoraGwei = recomendacao.PiorHoraGwei,
+            MediaGeralGwei = recomendacao.MediaGeralGwei,
+            EconomiaPercentual = recomendacao.EconomiaPercentual,
+            HorasDeEspera = recomendacao.HorasDeEspera,
+            PoucaConfianca = recomendacao.PoucaConfianca,
+            Resumo = Resumo(recomendacao),
+            Horas = horas.Select(static hora => new HoraDoDiaResponse
+            {
+                HoraUtc = hora.HoraUtc,
+                Amostras = hora.Amostras,
+                BaseFeeGweiAvg = hora.BaseFeeGweiAvg,
+                BaseFeeGweiP50 = hora.BaseFeeGweiP50,
+                BaseFeeGweiMin = hora.BaseFeeGweiMin,
+                BaseFeeGweiMax = hora.BaseFeeGweiMax,
+            }).ToList(),
+        });
+    }
+
+    /// <summary>Grade dia-da-semana x hora, para o heatmap.</summary>
+    [HttpGet("heatmap")]
+    [ProducesResponseType<IReadOnlyList<SemanaHoraResponse>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<SemanaHoraResponse>>> GetHeatmap(
+        CancellationToken cancellationToken)
+    {
+        var celulas = await _repository.GetSemanaHoraAsync(cancellationToken);
+        return Ok(celulas.Select(static celula => new SemanaHoraResponse
+        {
+            DiaSemana = celula.DiaSemana,
+            HoraUtc = celula.HoraUtc,
+            Amostras = celula.Amostras,
+            BaseFeeGweiAvg = celula.BaseFeeGweiAvg,
+        }).ToList());
+    }
+
+    /// <summary>Cotacao do ETH com a variacao de 24 h.</summary>
+    [HttpGet("eth-usd")]
+    [ProducesResponseType<EthUsd24hResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<EthUsd24hResponse>> GetEthUsd(CancellationToken cancellationToken)
+    {
+        var cotacao = await _repository.GetEthUsd24hAsync(cancellationToken);
+        if (cotacao is null)
+        {
+            return Problem(
+                title: "Sem cotacao",
+                detail: "A serie eth_usd_prices esta vazia.",
+                statusCode: StatusCodes.Status404NotFound);
+        }
+
+        // Sem amostra anterior a 24 h, a variacao fica NULA em vez de 0%: os dois
+        // seriam o mesmo numero na tela e significam coisas opostas — "estavel"
+        // contra "nao sabemos".
+        var temReferencia = cotacao.Amostras24h > 0 && cotacao.Preco24h > 0;
+
+        return Ok(new EthUsd24hResponse
+        {
+            PrecoAtual = cotacao.PrecoAtual,
+            ObservadoEmUtc = cotacao.ObservadoEm,
+            Preco24h = temReferencia ? cotacao.Preco24h : null,
+            VariacaoPercentual = temReferencia
+                ? Math.Round((double)((cotacao.PrecoAtual - cotacao.Preco24h) / cotacao.Preco24h) * 100, 2)
+                : null,
+        });
+    }
+
+    private static string Resumo(RecomendacaoDeHorario r)
+    {
+        var melhor = $"{r.MelhorHoraUtc:00}h UTC";
+
+        if (r.EconomiaPercentual < 5)
+        {
+            return $"Bom momento para executar: agora esta proximo do melhor horario historico ({melhor}).";
+        }
+
+        var espera = r.HorasDeEspera == 0
+            ? "na proxima janela"
+            : $"em {r.HorasDeEspera} h";
+
+        return $"Esperar ate {melhor} ({espera}) economizaria cerca de "
+               + $"{r.EconomiaPercentual:0.#}% sobre a base fee atual.";
     }
 
     private static LatestBlockResponse ToResponse(ColdLatestBlock block) => new()

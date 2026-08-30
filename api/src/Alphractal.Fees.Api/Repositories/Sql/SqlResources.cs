@@ -50,4 +50,8 @@ public static class SqlResources
     public static string FeesHistoryDaily => Load("fees_history_daily");
     public static string FeeEstimatesDaily => Load("fee_estimates_daily");
     public static string IngestionStatus => Load("ingestion_status");
+    public static string BaseFeePercentiles30d => Load("base_fee_percentiles_30d");
+    public static string FeesHoraDoDia => Load("fees_hora_do_dia");
+    public static string FeesSemanaHora => Load("fees_semana_hora");
+    public static string EthUsd24h => Load("eth_usd_24h");
 }

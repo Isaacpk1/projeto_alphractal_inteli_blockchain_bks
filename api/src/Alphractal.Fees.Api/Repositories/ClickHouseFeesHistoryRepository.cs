@@ -126,6 +126,67 @@ public sealed class ClickHouseFeesHistoryRepository : IFeesHistoryRepository
             LastSeenAt = reader.AsUtc("last_seen_at"),
         }, cancellationToken);
 
+    public async Task<ColdBaseFeeDistribution?> GetBaseFeeDistributionAsync(CancellationToken cancellationToken)
+    {
+        var distribution = await QuerySingleAsync(
+            SqlResources.BaseFeePercentiles30d, null, static reader => new ColdBaseFeeDistribution
+            {
+                Buckets = reader.AsUInt64("buckets"),
+                FromBucket = reader.AsUtc("from_bucket"),
+                ToBucket = reader.AsUtc("to_bucket"),
+                P05Gwei = reader.AsDouble("p05_gwei"),
+                P10Gwei = reader.AsDouble("p10_gwei"),
+                P25Gwei = reader.AsDouble("p25_gwei"),
+                P50Gwei = reader.AsDouble("p50_gwei"),
+                P75Gwei = reader.AsDouble("p75_gwei"),
+                P90Gwei = reader.AsDouble("p90_gwei"),
+                P95Gwei = reader.AsDouble("p95_gwei"),
+                MinGwei = reader.AsDouble("min_gwei"),
+                MaxGwei = reader.AsDouble("max_gwei"),
+            }, cancellationToken).ConfigureAwait(false);
+
+        // A view sempre devolve UMA linha, mesmo sem dado — agregacao sem GROUP BY
+        // nao retorna vazio. Zero buckets significa janela sem dado, e devolver
+        // null aqui evita que o consumidor compare contra percentis todos zerados.
+        return distribution is { Buckets: 0 } ? null : distribution;
+    }
+
+    public Task<IReadOnlyList<ColdHoraDoDia>> GetHoraDoDiaAsync(CancellationToken cancellationToken)
+        => QueryAsync(SqlResources.FeesHoraDoDia, null, static reader => new ColdHoraDoDia
+        {
+            HoraUtc = (int)reader.AsUInt32("hora_utc"),
+            Amostras = reader.AsUInt64("amostras"),
+            BaseFeeGweiAvg = reader.AsDouble("base_fee_gwei_avg"),
+            BaseFeeGweiP50 = reader.AsDouble("base_fee_gwei_p50"),
+            BaseFeeGweiMin = reader.AsDouble("base_fee_gwei_min"),
+            BaseFeeGweiMax = reader.AsDouble("base_fee_gwei_max"),
+        }, cancellationToken);
+
+    public Task<IReadOnlyList<ColdSemanaHora>> GetSemanaHoraAsync(CancellationToken cancellationToken)
+        => QueryAsync(SqlResources.FeesSemanaHora, null, static reader => new ColdSemanaHora
+        {
+            DiaSemana = (int)reader.AsUInt32("dia_semana"),
+            HoraUtc = (int)reader.AsUInt32("hora_utc"),
+            Amostras = reader.AsUInt64("amostras"),
+            BaseFeeGweiAvg = reader.AsDouble("base_fee_gwei_avg"),
+        }, cancellationToken);
+
+    public async Task<ColdEthUsd24h?> GetEthUsd24hAsync(CancellationToken cancellationToken)
+    {
+        var linha = await QuerySingleAsync(SqlResources.EthUsd24h, null, static reader => new ColdEthUsd24h
+        {
+            PrecoAtual = reader.AsDecimal("preco_atual"),
+            ObservadoEm = reader.AsUtc("observado_em"),
+            Preco24h = reader.AsDecimal("preco_24h"),
+            ObservadoEm24h = reader.AsUtc("observado_em_24h"),
+            Amostras24h = reader.AsUInt64("amostras_24h"),
+        }, cancellationToken).ConfigureAwait(false);
+
+        // Agregacao sem GROUP BY devolve sempre uma linha, zerada quando nao ha
+        // dado. Preco atual zero significa serie vazia, nao ETH valendo zero.
+        return linha is null || linha.PrecoAtual <= 0 ? null : linha;
+    }
+
     public async Task<bool> PingAsync(CancellationToken cancellationToken)
     {
         try

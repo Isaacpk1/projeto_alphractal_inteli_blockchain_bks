@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Alphractal.Fees.Api.Models.Domain;
 using Alphractal.Fees.Api.Models.Responses;
 using Alphractal.Fees.Api.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -27,11 +28,19 @@ public sealed class LiveController : ControllerBase
 
     private readonly FeesBroadcaster _broadcaster;
     private readonly HotBlockWindow _window;
+    private readonly PriorityFeeState _tiers;
+    private readonly FeeCalculator _calculator;
 
-    public LiveController(FeesBroadcaster broadcaster, HotBlockWindow window)
+    public LiveController(
+        FeesBroadcaster broadcaster,
+        HotBlockWindow window,
+        PriorityFeeState tiers,
+        FeeCalculator calculator)
     {
         _broadcaster = broadcaster;
         _window = window;
+        _tiers = tiers;
+        _calculator = calculator;
     }
 
     /// <summary>Ultimo snapshot conhecido. Uma foto; o stream e o filme.</summary>
@@ -102,6 +111,132 @@ public sealed class LiveController : ControllerBase
         {
             // Cliente fechou a aba. E o fim normal de um stream, nao um erro.
         }
+    }
+
+    /// <summary>
+    /// Custo de uma transacao com o gas limit informado, nas tres velocidades.
+    /// </summary>
+    /// <remarks>
+    /// Servido da memoria (RN-14): usa a base fee do ultimo bloco e as faixas
+    /// vigentes. Os gas limits da RN-11 sao referencias para os casos comuns;
+    /// esta rota existe para quem conhece o gas exato da propria transacao —
+    /// que e o caso do usuario institucional a que o projeto se destina.
+    /// </remarks>
+    [HttpGet("custo")]
+    [Produces("application/json")]
+    [ProducesResponseType<CustoPorGasResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public ActionResult<CustoPorGasResponse> GetCusto([FromQuery] uint gasUnits)
+    {
+        // 21.000 e o minimo do protocolo para qualquer transacao; 30 milhoes e a
+        // ordem do gas limit de um bloco inteiro. Fora disso o pedido nao
+        // descreve uma transacao real.
+        if (gasUnits is < 21_000 or > 30_000_000)
+        {
+            return Problem(
+                title: "gasUnits fora de faixa",
+                detail: "Informe entre 21.000 (transferencia simples) e 30.000.000 (bloco inteiro).",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var bloco = _window.Latest;
+        if (bloco is null)
+        {
+            return Problem(
+                title: "Janela quente vazia",
+                detail: "Nenhum bloco recebido ainda; nao ha base fee para calcular.",
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        var faixas = _tiers.Current;
+        var preco = _broadcaster.Latest?.EthUsd;
+
+        var custos = new[] { SpeedTier.Slow, SpeedTier.Standard, SpeedTier.Fast }
+            .Select(velocidade =>
+            {
+                var priority = faixas.For(velocidade);
+                var wei = FeeCalculator.TransactionCostWei(bloco.BaseFeePerGas, priority, gasUnits);
+
+                return new OperationCostResponse
+                {
+                    Operation = "personalizada",
+                    Speed = velocidade switch
+                    {
+                        SpeedTier.Slow => "lento",
+                        SpeedTier.Fast => "rapido",
+                        _ => "padrao",
+                    },
+                    GasUnits = gasUnits,
+                    TotalFeeGwei = FeeCalculator.ToGwei(wei),
+                    TotalFeeEth = FeeCalculator.ToEth(wei),
+                    TotalFeeUsd = preco is null ? null : FeeCalculator.ToUsd(wei, preco.Price),
+                };
+            })
+            .ToList();
+
+        return Ok(new CustoPorGasResponse
+        {
+            GasUnits = gasUnits,
+            BlockNumber = (ulong)bloco.Number,
+            BaseFeeGwei = FeeCalculator.ToGwei(bloco.BaseFeePerGas),
+            Custos = custos,
+            EthUsd = preco,
+        });
+    }
+
+    /// <summary>
+    /// Taxa de queima do EIP-1559, medida sobre a janela quente.
+    /// </summary>
+    /// <remarks>
+    /// A base fee e destruida pelo protocolo, nao paga a ninguem. Medir isso
+    /// converte congestionamento em impacto economico — e a leitura que um
+    /// gestor entende sem saber o que e gwei.
+    /// <para>
+    /// A taxa por minuto usa o tempo real entre o primeiro e o ultimo bloco da
+    /// janela, nao a suposicao de 12 s por bloco: slots perdidos existem, e
+    /// assumir cadencia perfeita inflaria o numero justamente quando a rede
+    /// esta com problema.
+    /// </para>
+    /// </remarks>
+    [HttpGet("queima")]
+    [Produces("application/json")]
+    [ProducesResponseType<QueimaResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public ActionResult<QueimaResponse> GetQueima()
+    {
+        var blocos = _window.Snapshot(_window.Count);
+        if (blocos.Count == 0)
+        {
+            return Problem(
+                title: "Janela quente vazia",
+                detail: "Nenhum bloco recebido ainda.",
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        var queimadoWei = blocos.Aggregate(
+            System.Numerics.BigInteger.Zero,
+            static (total, bloco) => total + bloco.BaseFeePerGas * bloco.GasUsed);
+
+        var maisNovo = blocos[0];
+        var maisAntigo = blocos[^1];
+        var minutos = (maisNovo.Timestamp - maisAntigo.Timestamp).TotalMinutes;
+
+        var queimadoEth = FeeCalculator.ToEth(queimadoWei);
+        // Com um unico bloco a janela tem duracao zero; nao da para extrapolar
+        // uma taxa por minuto a partir de um ponto.
+        var porMinuto = minutos > 0 ? queimadoEth / (decimal)minutos : 0m;
+        var preco = _broadcaster.Latest?.EthUsd;
+
+        return Ok(new QueimaResponse
+        {
+            EthPorMinuto = Math.Round(porMinuto, 6),
+            EthNoUltimoBloco = FeeCalculator.ToEth(maisNovo.BaseFeePerGas * maisNovo.GasUsed),
+            EthNaJanela = queimadoEth,
+            BlocosNaJanela = blocos.Count,
+            MinutosDaJanela = Math.Round(minutos, 2),
+            UsdPorMinuto = preco is null ? null : Math.Round(porMinuto * preco.Price, 2),
+        });
     }
 
     /// <summary>Diagnostico da janela quente: quantos blocos ja entraram.</summary>

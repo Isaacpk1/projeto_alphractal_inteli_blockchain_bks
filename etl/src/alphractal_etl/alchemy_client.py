@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import itertools
+import random
+import time
 from typing import Any
 
 import requests
@@ -12,12 +14,50 @@ class AlchemyError(RuntimeError):
     pass
 
 
+class RateLimitError(AlchemyError):
+    """Estouro de throughput (CU/s), nao de cota mensal.
+
+    Merece classe propria porque e a unica falha da Alchemy que se resolve
+    apenas esperando: nem o intervalo, nem a chave, nem o payload estao errados.
+    """
+
+
+#: Numero de tentativas por chamada antes de desistir.
+MAX_TENTATIVAS = 6
+
+#: Espera inicial do backoff, em segundos. Dobra a cada tentativa.
+ESPERA_INICIAL = 1.0
+
+
+def _e_rate_limit(erro: Any) -> bool:
+    """Um erro JSON-RPC e estouro de throughput?
+
+    O 429 do batch NAO chega como status HTTP: a resposta vem 200 e cada item
+    carrega o proprio erro. Por isso o Retry do urllib3, que olha o status, nunca
+    disparava aqui — e o backfill morria na primeira rajada.
+    """
+    if not isinstance(erro, dict):
+        return False
+    if erro.get("code") == 429:
+        return True
+    return "compute units" in str(erro.get("message", "")).lower()
+
+
 class AlchemyClient:
-    def __init__(self, api_key: str, timeout_seconds: float = 30) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        timeout_seconds: float = 30,
+        intervalo_minimo: float = 0.0,
+    ) -> None:
         if not api_key.strip():
             raise ValueError("ALCHEMY_API_KEY nao configurada")
         self._url = f"https://eth-mainnet.g.alchemy.com/v2/{api_key.strip()}"
         self._timeout = timeout_seconds
+        # Ritmo minimo entre requisicoes. O limite da Alchemy e de unidades por
+        # SEGUNDO: sem espacar, uma rajada estoura mesmo com poucos lotes.
+        self._intervalo_minimo = max(0.0, intervalo_minimo)
+        self._ultima_requisicao = 0.0
         self._ids = itertools.count(1)
         self._session = requests.Session()
         retries = Retry(
@@ -72,7 +112,7 @@ class AlchemyClient:
                 "jsonrpc": "2.0", "id": request_id, "method": "eth_getBlockByNumber",
                 "params": [hex(number), False],
             })
-        payload = self._post(batch)
+        payload = self._post_com_retry(batch)
         if not isinstance(payload, list):
             raise AlchemyError("resposta batch invalida")
         results: dict[int, dict[str, Any]] = {}
@@ -104,9 +144,42 @@ class AlchemyClient:
             raise AlchemyError(f"blocos ausentes no batch: {missing}")
         return [results[number] for number in block_numbers]
 
+    def _post_com_retry(self, payload: Any) -> Any:
+        """POST com backoff exponencial quando a resposta indica throughput estourado.
+
+        O batch inteiro e refeito, nao apenas os itens que falharam: a Alchemy
+        pode recusar itens diferentes a cada tentativa, e reconstruir o batch
+        parcial complicaria o mapeamento de ids sem ganho real.
+        """
+        espera = ESPERA_INICIAL
+        for tentativa in range(1, MAX_TENTATIVAS + 1):
+            resposta = self._post(payload)
+
+            if isinstance(resposta, list):
+                limitado = any(_e_rate_limit(item.get("error")) for item in resposta if isinstance(item, dict))
+            elif isinstance(resposta, dict):
+                limitado = _e_rate_limit(resposta.get("error"))
+            else:
+                limitado = False
+
+            if not limitado:
+                return resposta
+
+            if tentativa == MAX_TENTATIVAS:
+                raise RateLimitError(
+                    f"throughput da Alchemy estourado apos {MAX_TENTATIVAS} tentativas. "
+                    "Reduza --batch-size ou aumente --pausa-lote"
+                )
+
+            # Jitter evita que varias execucoes simultaneas voltem em sincronia
+            # e estourem o limite juntas de novo.
+            time.sleep(espera + random.uniform(0, espera * 0.25))
+            espera *= 2
+        raise RateLimitError("throughput da Alchemy estourado")
+
     def _rpc(self, method: str, params: list[Any] | None = None) -> Any:
         request_id = next(self._ids)
-        body = self._post({
+        body = self._post_com_retry({
             "jsonrpc": "2.0", "id": request_id, "method": method, "params": params or [],
         })
         if not isinstance(body, dict):
@@ -118,6 +191,11 @@ class AlchemyClient:
         return body["result"]
 
     def _post(self, payload: Any) -> Any:
+        if self._intervalo_minimo > 0:
+            desde_a_ultima = time.monotonic() - self._ultima_requisicao
+            if desde_a_ultima < self._intervalo_minimo:
+                time.sleep(self._intervalo_minimo - desde_a_ultima)
+            self._ultima_requisicao = time.monotonic()
         try:
             response = self._session.post(self._url, json=payload, timeout=self._timeout)
             response.raise_for_status()

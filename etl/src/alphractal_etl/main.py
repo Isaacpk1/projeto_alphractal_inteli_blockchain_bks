@@ -89,7 +89,18 @@ def build_parser() -> argparse.ArgumentParser:
     backfill_parser.add_argument("--from-block", type=int, required=True)
     backfill_parser.add_argument("--to-block", type=int, required=True)
     backfill_parser.add_argument("--eth-usd", required=True, help="preco ETH/USD da janela")
-    backfill_parser.add_argument("--batch-size", type=int, default=100)
+    backfill_parser.add_argument(
+        "--batch-size", type=int, default=100,
+        help="blocos por chamada RPC (1-1024). Lotes grandes arrastam: cada bloco "
+             "traz a lista de hashes de transacao")
+    backfill_parser.add_argument(
+        "--blocks-per-file", type=int, default=0,
+        help="blocos por arquivo de spool (>= batch-size). Arquivos maiores = menos "
+             "INSERTs no ClickHouse. 0 usa o batch-size")
+    backfill_parser.add_argument(
+        "--pausa-lote", type=float, default=0.0, dest="pausa_lote",
+        help="segundos entre requisicoes RPC. O limite da Alchemy e por SEGUNDO: "
+             "sem ritmo, uma rajada estoura mesmo com poucos lotes")
     return parser
 
 
@@ -109,6 +120,8 @@ def main() -> None:
             to_block=args.to_block,
             eth_usd=args.eth_usd,
             batch_size=args.batch_size,
+            blocks_per_file=args.blocks_per_file,
+            intervalo_minimo=args.pausa_lote,
         )
         generated = run_backfill(config)
         LOGGER.info("backfill concluido: %d arquivos", len(generated))

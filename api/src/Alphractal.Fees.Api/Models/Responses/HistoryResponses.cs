@@ -113,6 +113,39 @@ public sealed record ComponentStatusResponse
     public required double SecondsSinceLastSeen { get; init; }
 }
 
+/// <summary>
+/// D-02 — a base fee atual contra os ultimos 30 dias.
+/// </summary>
+/// <remarks>
+/// Complementa o indice de congestionamento, nao o substitui: aquele responde
+/// "esta subindo agora?", este responde "esta caro historicamente?".
+/// </remarks>
+public sealed record HistoricalPositionResponse
+{
+    public required double CurrentBaseFeeGwei { get; init; }
+
+    /// <summary>Posicao aproximada na distribuicao, de 0 a 100.</summary>
+    public required double PercentileRank { get; init; }
+
+    /// <summary><c>muito barato</c> … <c>muito caro</c>.</summary>
+    public required string Label { get; init; }
+
+    /// <summary>Horas de historico na janela. 720 = 30 dias completos.</summary>
+    public required ulong Buckets { get; init; }
+
+    /// <summary>
+    /// Historico curto demais para afirmar posicao. O painel deve exibir o aviso
+    /// junto do numero, nunca esconder um dos dois.
+    /// </summary>
+    public required bool LowConfidence { get; init; }
+
+    public required DateTimeOffset FromUtc { get; init; }
+    public required DateTimeOffset ToUtc { get; init; }
+
+    /// <summary>Limiares da distribuicao, em gwei — permitem desenhar a regua no painel.</summary>
+    public required IReadOnlyDictionary<string, double> ThresholdsGwei { get; init; }
+}
+
 /// <summary>Envelope das series historicas: o front precisa saber o que pediu.</summary>
 public sealed record HistoryResponse<T>
 {
