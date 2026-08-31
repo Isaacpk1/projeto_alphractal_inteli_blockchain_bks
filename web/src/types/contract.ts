@@ -79,6 +79,12 @@ export interface ApiFeesSnapshot {
   source: 'live';
 }
 
+export interface ApiEthPriceTick {
+  price: number;
+  observedAtUtc: string;
+  source: string;
+}
+
 export interface HistoryPoint {
   blockNumber: number;
   blockTimestampUtc: string;

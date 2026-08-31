@@ -4,6 +4,7 @@ export const endpoints = {
   health: `${base}/api/v1/health`,
   status: `${base}/api/v1/status`,
   stream: `${base}/api/v1/fees/stream`,
+  priceStream: `${base}/api/v1/fees/price-stream`,
   snapshot: `${base}/api/v1/fees/snapshot`,
   coldLatest: `${base}/api/v1/fees/latest`,
   coldMempool: `${base}/api/v1/fees/mempool`,

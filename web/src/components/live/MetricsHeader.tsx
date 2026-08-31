@@ -4,8 +4,8 @@ import { ArrowDownIcon, ArrowUpIcon, EthIcon } from '../ui/icons';
 import { Skeleton } from '../ui/Skeleton';
 
 /**
- * Faixa de métricas do design: CURRENT PRICE · BASE FEE · BLOCK · MEMPOOL.
- * Assina só o snapshot — re-renderiza uma vez por bloco, e nada acima dela.
+ * Faixa de métricas do design. O preço vive num assinante separado: ticks da
+ * Coinbase não reconciliam base fee e bloco desnecessariamente.
  */
 export function MetricsHeader() {
   const snapshot = useFeesSlice((s) => s.snapshot);
@@ -22,27 +22,7 @@ export function MetricsHeader() {
       </div>
 
       <dl className="metrics__list">
-        <div className="metric">
-          <dt>Current price</dt>
-          <dd>
-            {snapshot ? (
-              <>
-                {fmtUsd(snapshot.ethUsd.price)}
-                <span
-                  className={
-                    snapshot.ethUsd.change24hPct >= 0
-                      ? 'badge badge--up'
-                      : 'badge badge--down'
-                  }
-                >
-                  {fmtPct(snapshot.ethUsd.change24hPct)}
-                </span>
-              </>
-            ) : (
-              <Skeleton width={110} height={20} />
-            )}
-          </dd>
-        </div>
+        <CurrentPriceMetric />
 
         <div className="metric">
           <dt>Base fee</dt>
@@ -75,6 +55,28 @@ export function MetricsHeader() {
           </dd>
         </div>
       </dl>
+    </div>
+  );
+}
+
+function CurrentPriceMetric() {
+  const price = useFeesSlice((state) => state.ethPrice);
+
+  return (
+    <div className="metric">
+      <dt>Current price</dt>
+      <dd>
+        {price ? (
+          <>
+            {fmtUsd(price.price)}
+            <span className={price.change24hPct >= 0 ? 'badge badge--up' : 'badge badge--down'}>
+              {fmtPct(price.change24hPct)}
+            </span>
+          </>
+        ) : (
+          <Skeleton width={110} height={20} />
+        )}
+      </dd>
     </div>
   );
 }

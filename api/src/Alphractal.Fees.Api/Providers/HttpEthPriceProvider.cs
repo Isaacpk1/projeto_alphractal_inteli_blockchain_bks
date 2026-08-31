@@ -1,11 +1,14 @@
+using System.Net.WebSockets;
+using System.Text;
 using System.Text.Json;
 using Alphractal.Fees.Api.Configuration;
+using Alphractal.Fees.Api.Services;
 using Microsoft.Extensions.Options;
 
 namespace Alphractal.Fees.Api.Providers;
 
 /// <summary>
-/// Cotacao ETH/USD por HTTP, com cache do intervalo da RN-03 (60 s por padrao).
+/// Cotacao ETH/USD por HTTP, com cache do intervalo da RN-03 (15 s por padrao).
 /// </summary>
 /// <remarks>
 /// Uma chamada por bloco (a cada ~12 s) estouraria o rate limit de qualquer fonte
@@ -17,34 +20,87 @@ namespace Alphractal.Fees.Api.Providers;
 /// <see cref="EthPrice.None"/>. Em nenhum caminho inventamos preco.
 /// </para>
 /// </remarks>
-public sealed class HttpEthPriceProvider : IEthPriceProvider
+public sealed class HttpEthPriceProvider : BackgroundService, IEthPriceProvider
 {
     public const string HttpClientName = "eth-price";
+    private static readonly TimeSpan MinReconnectDelay = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan MaxReconnectDelay = TimeSpan.FromSeconds(30);
 
     private readonly IHttpClientFactory _httpFactory;
     private readonly FeesOptions _options;
+    private readonly EthPriceBroadcaster _broadcaster;
     private readonly ILogger<HttpEthPriceProvider> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly object _cacheGate = new();
 
     private EthPrice _cached = EthPrice.None;
 
     public HttpEthPriceProvider(
         IHttpClientFactory httpFactory,
         IOptions<FeesOptions> options,
+        EthPriceBroadcaster broadcaster,
         ILogger<HttpEthPriceProvider> logger)
     {
         _httpFactory = httpFactory;
         _options = options.Value;
+        _broadcaster = broadcaster;
         _logger = logger;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        // Popula imediatamente pelo REST para que o painel nao espere o primeiro
+        // negocio do feed. Depois o ticker passa a ser a fonte primaria.
+        await GetAsync(stoppingToken).ConfigureAwait(false);
+
+        if (string.IsNullOrWhiteSpace(_options.PriceWebSocketUrl))
+        {
+            _logger.LogInformation("WebSocket de cotacao desligado; usando polling REST.");
+            return;
+        }
+
+        var reconnectDelay = MinReconnectDelay;
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await RunWebSocketAsync(stoppingToken).ConfigureAwait(false);
+                reconnectDelay = MinReconnectDelay;
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception exception)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "WebSocket ETH/USD caiu; reconectando em {Delay}s. REST segue como fallback.",
+                    reconnectDelay.TotalSeconds);
+            }
+
+            try
+            {
+                await Task.Delay(reconnectDelay, stoppingToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+
+            reconnectDelay = TimeSpan.FromTicks(
+                Math.Min(reconnectDelay.Ticks * 2, MaxReconnectDelay.Ticks));
+        }
     }
 
     public async Task<EthPrice> GetAsync(CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
+        var cached = ReadCached();
 
-        if (_cached.HasValue && (now - _cached.ObservedAt).TotalSeconds < _options.PriceRefreshSeconds)
+        if (cached.HasValue && (now - cached.ObservedAt).TotalSeconds < _options.PriceRefreshSeconds)
         {
-            return _cached;
+            return cached;
         }
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -52,9 +108,10 @@ public sealed class HttpEthPriceProvider : IEthPriceProvider
         {
             // Outra requisicao pode ter atualizado enquanto esperavamos o lock.
             now = DateTimeOffset.UtcNow;
-            if (_cached.HasValue && (now - _cached.ObservedAt).TotalSeconds < _options.PriceRefreshSeconds)
+            cached = ReadCached();
+            if (cached.HasValue && (now - cached.ObservedAt).TotalSeconds < _options.PriceRefreshSeconds)
             {
-                return _cached;
+                return cached;
             }
 
             if (string.IsNullOrWhiteSpace(_options.PriceSourceUrl))
@@ -65,21 +122,146 @@ public sealed class HttpEthPriceProvider : IEthPriceProvider
             var fetched = await FetchAsync(cancellationToken).ConfigureAwait(false);
             if (fetched > 0)
             {
-                _cached = new EthPrice(fetched, now, SourceLabel());
-                return _cached;
+                return Store(fetched, now, SourceLabel());
             }
 
-            return _cached.HasValue ? _cached : Fallback(now);
+            cached = ReadCached();
+            return cached.HasValue ? cached : Fallback(now);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             _logger.LogWarning(exception, "Falha ao obter cotacao ETH/USD.");
-            return _cached.HasValue ? _cached : Fallback(DateTimeOffset.UtcNow);
+            cached = ReadCached();
+            return cached.HasValue ? cached : Fallback(DateTimeOffset.UtcNow);
         }
         finally
         {
             _gate.Release();
         }
+    }
+
+    private async Task RunWebSocketAsync(CancellationToken cancellationToken)
+    {
+        using var socket = new ClientWebSocket();
+        await socket
+            .ConnectAsync(new Uri(_options.PriceWebSocketUrl), cancellationToken)
+            .ConfigureAwait(false);
+
+        await SendSubscriptionAsync(socket, "ticker", cancellationToken).ConfigureAwait(false);
+        await SendSubscriptionAsync(socket, "heartbeats", cancellationToken).ConfigureAwait(false);
+        _logger.LogInformation("Cotacao ETH/USD ao vivo assinada no ticker da Coinbase.");
+
+        var buffer = new byte[16 * 1024];
+        while (socket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
+        {
+            using var payload = new MemoryStream();
+            WebSocketReceiveResult result;
+            do
+            {
+                result = await socket.ReceiveAsync(buffer, cancellationToken).ConfigureAwait(false);
+                if (result.MessageType == WebSocketMessageType.Close)
+                {
+                    throw new WebSocketException($"Feed fechou a conexao: {result.CloseStatus}.");
+                }
+
+                payload.Write(buffer, 0, result.Count);
+            }
+            while (!result.EndOfMessage);
+
+            if (result.MessageType != WebSocketMessageType.Text)
+            {
+                continue;
+            }
+
+            payload.Position = 0;
+            using var document = await JsonDocument
+                .ParseAsync(payload, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+            var price = ExtractTickerPrice(document.RootElement);
+            if (price > 0)
+            {
+                Store(price, DateTimeOffset.UtcNow, "advanced-trade-ws.coinbase.com");
+            }
+        }
+    }
+
+    private static async Task SendSubscriptionAsync(
+        ClientWebSocket socket,
+        string channel,
+        CancellationToken cancellationToken)
+    {
+        var message = channel == "ticker"
+            ? """{"type":"subscribe","product_ids":["ETH-USD"],"channel":"ticker"}"""
+            : """{"type":"subscribe","channel":"heartbeats"}""";
+        var bytes = Encoding.UTF8.GetBytes(message);
+        await socket
+            .SendAsync(bytes, WebSocketMessageType.Text, true, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    internal static decimal ExtractTickerPrice(JsonElement root)
+    {
+        if (!root.TryGetProperty("events", out var events) || events.ValueKind != JsonValueKind.Array)
+        {
+            return 0m;
+        }
+
+        foreach (var marketEvent in events.EnumerateArray())
+        {
+            if (!marketEvent.TryGetProperty("tickers", out var tickers)
+                || tickers.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
+            foreach (var ticker in tickers.EnumerateArray())
+            {
+                if (!ticker.TryGetProperty("product_id", out var product)
+                    || product.GetString() != "ETH-USD"
+                    || !ticker.TryGetProperty("price", out var price))
+                {
+                    continue;
+                }
+
+                if (price.ValueKind == JsonValueKind.String
+                    && decimal.TryParse(
+                        price.GetString(),
+                        System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        out var parsed))
+                {
+                    return parsed;
+                }
+            }
+        }
+
+        return 0m;
+    }
+
+    private EthPrice ReadCached()
+    {
+        lock (_cacheGate)
+        {
+            return _cached;
+        }
+    }
+
+    private EthPrice Store(decimal price, DateTimeOffset observedAt, string source)
+    {
+        var next = new EthPrice(price, observedAt, source);
+        bool changed;
+        lock (_cacheGate)
+        {
+            changed = !_cached.HasValue || _cached.Price != price;
+            _cached = next;
+        }
+
+        if (changed)
+        {
+            _broadcaster.Publish(next);
+        }
+
+        return next;
     }
 
     /// <summary>

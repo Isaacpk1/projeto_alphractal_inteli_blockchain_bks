@@ -16,6 +16,13 @@ RUN dotnet publish src/Alphractal.Fees.Api/Alphractal.Fees.Api.csproj \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
+# O healthcheck do Compose consulta /api/v1/health com wget. A imagem slim do
+# ASP.NET nao inclui o binario por padrao, o que marcaria uma API funcional como
+# unhealthy com `/bin/sh: wget: not found`.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget \
+    && rm -rf /var/lib/apt/lists/*
+
 # Usuario nao-root: o container escreve no spool, que e volume compartilhado com
 # o ETL. Rodando como root, os arquivos sairiam com dono errado no host Linux.
 RUN useradd --uid 1001 --create-home --shell /usr/sbin/nologin alphractal

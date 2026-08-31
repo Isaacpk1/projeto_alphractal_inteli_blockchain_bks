@@ -56,7 +56,13 @@ export class MockFeesTransport implements FeesTransport {
     const boot = setTimeout(() => {
       if (disposed) return;
       handlers.onStatus('ao-vivo');
-      handlers.onSnapshot(chain.snapshot());
+      const initial = chain.snapshot();
+      handlers.onSnapshot(initial);
+      handlers.onPrice({
+        price: initial.ethUsd.price,
+        observedAtUtc: initial.blockTimestampUtc,
+        source: 'mock',
+      });
       timer = setInterval(() => {
         const now = Date.now();
         if (now < this.outageUntil) {
@@ -66,7 +72,13 @@ export class MockFeesTransport implements FeesTransport {
         if (now < this.staleUntil) return; // conectado, porém mudo
         chain.tick();
         handlers.onStatus('ao-vivo');
-        handlers.onSnapshot(chain.snapshot());
+        const snapshot = chain.snapshot();
+        handlers.onSnapshot(snapshot);
+        handlers.onPrice({
+          price: snapshot.ethUsd.price,
+          observedAtUtc: snapshot.blockTimestampUtc,
+          source: 'mock',
+        });
       }, BLOCK_MS);
     }, 500);
 

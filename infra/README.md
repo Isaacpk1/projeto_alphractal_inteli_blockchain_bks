@@ -14,8 +14,13 @@ docker compose ps
 ```
 
 Os scripts de `clickhouse/initdb/` rodam em ordem somente quando o volume está
-vazio. Para aplicar uma mudança incompatível localmente use
-`docker compose down -v` e suba novamente; isso apaga o volume local do Compose.
+vazio. As mudanças compatíveis e idempotentes ficam em `scripts/migrate_*.sql`:
+o serviço one-shot `clickhouse-migrate` reaplica esses arquivos, em ordem, a cada
+`docker compose up` e a API só inicia depois que eles terminam. Assim, uma view
+nova também é criada em volumes existentes sem apagar dados.
+
+Para uma mudança incompatível localmente, use `docker compose down -v` e suba
+novamente; esse comando apaga o volume local do Compose.
 
 ## Estrutura
 
@@ -24,6 +29,7 @@ vazio. Para aplicar uma mudança incompatível localmente use
 - `003_rollups.sql`: rollups horários/diários idempotentes.
 - `004_views.sql`: sete contratos de leitura da API.
 - `005_users.sql`: usuários com privilégio mínimo.
+- `scripts/migrate_*.sql`: evolução idempotente de volumes já inicializados.
 - `scripts/seed_dev.sql`: 48 horas de dados sintéticos e rollups.
 
 ## Idempotência

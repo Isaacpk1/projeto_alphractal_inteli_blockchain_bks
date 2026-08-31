@@ -3,6 +3,7 @@ import { HttpFeesTransport } from './transport';
 import { MockFeesTransport } from './mock/mockTransport';
 import type { ChartWindow, FeesTransport, MetricPeriod } from './transport';
 import type {
+  ApiEthPriceTick,
   FeesInsights,
   FeesSnapshot,
   HistoryPoint,
@@ -30,6 +31,8 @@ const STALE_AFTER_SECONDS = 45;
 export interface FeesState {
   status: StreamStatus;
   snapshot: FeesSnapshot | null;
+  /** Cotacao independente do bloco, atualizada pelo ticker da Coinbase. */
+  ethPrice: FeesSnapshot['ethUsd'] | null;
   /** A janela quente espelhada no front — alimenta o gráfico LIVE (RF-24). */
   liveHistory: HistoryPoint[];
   /** D-06 (backlog) — null se o endpoint não existir; os painéis degradam sós. */
@@ -41,6 +44,7 @@ export interface FeesState {
 let state: FeesState = {
   status: 'conectando',
   snapshot: null,
+  ethPrice: null,
   liveHistory: [],
   insights: null,
   lastBlockAtMs: null,
@@ -55,6 +59,7 @@ function setState(patch: Partial<FeesState>): void {
   if (
     next.status === state.status &&
     next.snapshot === state.snapshot &&
+    next.ethPrice === state.ethPrice &&
     next.liveHistory === state.liveHistory &&
     next.insights === state.insights &&
     next.lastBlockAtMs === state.lastBlockAtMs
@@ -94,9 +99,19 @@ function acceptSnapshot(s: FeesSnapshot): void {
 
   setState({
     snapshot: s,
+    ethPrice: s.ethUsd,
     liveHistory: history,
     status: 'ao-vivo',
     lastBlockAtMs: Date.now() - s.dataAgeSeconds * 1000,
+  });
+}
+
+function acceptPrice(tick: ApiEthPriceTick): void {
+  setState({
+    ethPrice: {
+      price: tick.price,
+      change24hPct: state.ethPrice?.change24hPct ?? 0,
+    },
   });
 }
 
@@ -109,6 +124,7 @@ async function hydrate(transport: FeesTransport): Promise<void> {
     ]);
     setState({
       snapshot,
+      ethPrice: snapshot.ethUsd,
       liveHistory: history.slice(-HOT_WINDOW),
       lastBlockAtMs: Date.now() - snapshot.dataAgeSeconds * 1000,
     });
@@ -161,6 +177,7 @@ export function startFeesStore(): void {
   let wasReconnecting = false;
   transport.connect({
     onSnapshot: acceptSnapshot,
+    onPrice: acceptPrice,
     onStatus: (status) => {
       if (status === 'ao-vivo' && wasReconnecting) {
         // Voltou de uma queda: os blocos do intervalo se perderam. Re-hidratar

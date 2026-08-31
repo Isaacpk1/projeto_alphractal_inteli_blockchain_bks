@@ -27,17 +27,20 @@ public sealed class LiveController : ControllerBase
     private static readonly JsonSerializerOptions SseJson = new(JsonSerializerDefaults.Web);
 
     private readonly FeesBroadcaster _broadcaster;
+    private readonly EthPriceBroadcaster _priceBroadcaster;
     private readonly HotBlockWindow _window;
     private readonly PriorityFeeState _tiers;
     private readonly FeeCalculator _calculator;
 
     public LiveController(
         FeesBroadcaster broadcaster,
+        EthPriceBroadcaster priceBroadcaster,
         HotBlockWindow window,
         PriorityFeeState tiers,
         FeeCalculator calculator)
     {
         _broadcaster = broadcaster;
+        _priceBroadcaster = priceBroadcaster;
         _window = window;
         _tiers = tiers;
         _calculator = calculator;
@@ -61,6 +64,41 @@ public sealed class LiveController : ControllerBase
         }
 
         return Ok(snapshot);
+    }
+
+    /// <summary>Cotacao ETH/USD em tempo real, independente da cadencia dos blocos.</summary>
+    [HttpGet("price-stream")]
+    public async Task PriceStream(CancellationToken cancellationToken)
+    {
+        Response.ContentType = "text/event-stream; charset=utf-8";
+        Response.Headers.CacheControl = "no-cache, no-store";
+        Response.Headers.Connection = "keep-alive";
+        Response.Headers["X-Accel-Buffering"] = "no";
+
+        await Response.WriteAsync(": conectado\n\n", cancellationToken).ConfigureAwait(false);
+        await Response.Body.FlushAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            await foreach (var price in _priceBroadcaster
+                .SubscribeAsync(cancellationToken)
+                .ConfigureAwait(false))
+            {
+                var response = new EthPriceTickResponse
+                {
+                    Price = price.Price,
+                    ObservedAtUtc = price.ObservedAt,
+                    Source = price.Source,
+                };
+                var payload = JsonSerializer.Serialize(response, SseJson);
+                await Response.WriteAsync($"data: {payload}\n\n", cancellationToken).ConfigureAwait(false);
+                await Response.Body.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // A aba foi fechada.
+        }
     }
 
     /// <summary>

@@ -59,4 +59,30 @@ public sealed class EthPriceParsingTests
 
         Assert.Equal(3200.55m, Extract(json, "data.amount"));
     }
+
+    [Fact]
+    public void Coinbase_ticker_extrai_eth_usd_e_ignora_outros_produtos()
+    {
+        var json = """
+            {
+              "channel":"ticker",
+              "events":[{"tickers":[
+                {"product_id":"BTC-USD","price":"65000.00"},
+                {"product_id":"ETH-USD","price":"2423.04"}
+              ]}]
+            }
+            """;
+
+        using var document = JsonDocument.Parse(json);
+        Assert.Equal(2423.04m, HttpEthPriceProvider.ExtractTickerPrice(document.RootElement));
+    }
+
+    [Fact]
+    public void Coinbase_heartbeat_nao_e_interpretado_como_preco()
+    {
+        var json = """{"channel":"heartbeats","events":[{"heartbeat_counter":"10"}]}""";
+
+        using var document = JsonDocument.Parse(json);
+        Assert.Equal(0m, HttpEthPriceProvider.ExtractTickerPrice(document.RootElement));
+    }
 }

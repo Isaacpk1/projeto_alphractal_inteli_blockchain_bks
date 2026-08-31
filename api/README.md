@@ -71,6 +71,7 @@ Implementado: **caminho frio de leitura**. A API conecta no ClickHouse como
 | `GET /api/v1/fees/estimates` | estimativa atual por operacao/velocidade |
 | `GET /api/v1/fees/history?granularity=hour\|day&from=&to=&limit=` | serie do rollup |
 | `GET /api/v1/fees/estimates/history?from=&to=&limit=` | custo diario por operacao (D-04) |
+| `GET /api/v1/fees/price-stream` | SSE da cotacao ETH/USD a cada mudanca no ticker da Coinbase |
 
 Nao implementado: ingestao Nethereum, `Services/` (RN-01 a RN-05), janela de 300
 blocos, SSE e escrita do spool. `/api/v1/fees/stream` e `/snapshot` estao

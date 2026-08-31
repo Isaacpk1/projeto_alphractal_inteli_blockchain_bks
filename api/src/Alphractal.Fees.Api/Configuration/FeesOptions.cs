@@ -61,6 +61,13 @@ public sealed class FeesOptions
         "https://api.coinbase.com/v2/prices/ETH-USD/spot";
 
     /// <summary>
+    /// Feed publico de mercado. Vazio desliga o WebSocket e mantem apenas o
+    /// polling REST definido por <see cref="PriceSourceUrl"/>.
+    /// </summary>
+    public string PriceWebSocketUrl { get; init; } =
+        "wss://advanced-trade-ws.coinbase.com";
+
+    /// <summary>
     /// Caminho do valor dentro da resposta JSON, com pontos separando os niveis.
     /// </summary>
     /// <remarks>
@@ -123,7 +130,7 @@ public sealed class FeesOptions
 
     /// <summary>Intervalo de atualizacao da cotacao ETH/USD (RN-03).</summary>
     [Range(5, 3_600)]
-    public int PriceRefreshSeconds { get; init; } = 60;
+    public int PriceRefreshSeconds { get; init; } = 15;
 
     /// <summary>Acima disto, o valor em USD e exibido como desatualizado (RN-03).</summary>
     [Range(10, 86_400)]

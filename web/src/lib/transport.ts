@@ -1,6 +1,6 @@
 import { endpoints, getJson, withQuery } from './api';
 import type {
-  ApiFeesSnapshot, EthUsd24hResponse, FeeHistoryPointResponse, FeesInsights,
+  ApiEthPriceTick, ApiFeesSnapshot, EthUsd24hResponse, FeeHistoryPointResponse, FeesInsights,
   FeesSnapshot, HistoryPoint, HistoryResponse, MetricId, MetricSeries,
   QueimaResponse, SpeedLabel, StreamStatus, TierId, TxTypeEstimate,
 } from '../types/contract';
@@ -17,6 +17,7 @@ export const WINDOW_BLOCKS: Record<Exclude<ChartWindow, 'live'>, number> = {
 
 export interface StreamHandlers {
   onSnapshot: (snapshot: FeesSnapshot) => void;
+  onPrice: (price: ApiEthPriceTick) => void;
   onStatus: (status: StreamStatus) => void;
 }
 export interface FeesTransport {
@@ -141,6 +142,7 @@ export class HttpFeesTransport implements FeesTransport {
 
   connect(handlers: StreamHandlers): () => void {
     const source = new EventSource(endpoints.stream);
+    const priceSource = new EventSource(endpoints.priceStream);
     source.onopen = () => handlers.onStatus('ao-vivo');
     source.onmessage = (event) => {
       try {
@@ -150,7 +152,13 @@ export class HttpFeesTransport implements FeesTransport {
     source.onerror = () => handlers.onStatus(
       source.readyState === EventSource.CLOSED ? 'erro' : 'reconectando',
     );
-    return () => source.close();
+    priceSource.onmessage = (event) => {
+      try { handlers.onPrice(JSON.parse(event.data) as ApiEthPriceTick) } catch { /* ignora tick invalido */ }
+    };
+    return () => {
+      source.close();
+      priceSource.close();
+    };
   }
 
   async fetchSnapshot(): Promise<FeesSnapshot> {

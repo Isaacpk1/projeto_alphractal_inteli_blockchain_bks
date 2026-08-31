@@ -61,7 +61,12 @@ builder.Services.AddSingleton<IChainMetricsProvider, NethereumChainMetricsProvid
 // sobreviver entre requisicoes, e um cliente tipado seria transient.
 builder.Services.AddHttpClient(HttpEthPriceProvider.HttpClientName, client =>
     client.Timeout = TimeSpan.FromSeconds(10));
-builder.Services.AddSingleton<IEthPriceProvider, HttpEthPriceProvider>();
+builder.Services.AddSingleton<EthPriceBroadcaster>();
+builder.Services.AddSingleton<HttpEthPriceProvider>();
+builder.Services.AddSingleton<IEthPriceProvider>(serviceProvider =>
+    serviceProvider.GetRequiredService<HttpEthPriceProvider>());
+builder.Services.AddSingleton<IHostedService>(serviceProvider =>
+    serviceProvider.GetRequiredService<HttpEthPriceProvider>());
 
 // Sem estado e sem I/O: singleton serve.
 builder.Services.AddSingleton<FeeCalculator>();
