@@ -1,4 +1,5 @@
 import { usePreferences } from '../../hooks/usePreferences';
+import { AlphractalLogo } from '../ui/AlphractalLogo';
 import {
   BellIcon,
   BookIcon,
@@ -10,7 +11,6 @@ import {
   GraduationIcon,
   HomeIcon,
   ListIcon,
-  LogoMark,
   MoonIcon,
   NetworkIcon,
   SearchIcon,
@@ -76,8 +76,7 @@ export function Sidebar({
   return (
     <aside className="sidebar primary-sidebar">
       <div className="sidebar__brand">
-        <LogoMark />
-        <span>Alphractal</span>
+        <AlphractalLogo compact={collapsed} />
       </div>
 
       <button type="button" className="primary-search" onClick={onUnavailable}>
