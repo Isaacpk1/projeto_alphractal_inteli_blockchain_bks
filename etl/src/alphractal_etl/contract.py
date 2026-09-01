@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -74,17 +74,32 @@ Converter = Callable[[Any], Any]
 class TableContract:
     columns: tuple[str, ...]
     converters: dict[str, Converter]
+    #: Colunas que podem faltar no arquivo, com o valor assumido quando faltam.
+    #:
+    #: Existe por causa da compatibilidade entre versoes: quando uma coluna nova
+    #: entra, o spool ja tem arquivos escritos pela versao anterior — e o
+    #: contrato rejeita o arquivo INTEIRO por um campo ausente, levando junto
+    #: todos os blocos que ele carrega. Uma coluna so entra aqui quando o valor
+    #: assumido e distinguivel de um dado real (zero para total_fee_wei: o dia
+    #: em que a rede cobra zero de taxa nao existe).
+    defaults: Mapping[str, Any] = field(default_factory=dict)
 
     def validate(self, data: Any) -> tuple[Any, ...]:
         if not isinstance(data, dict):
             raise ContractError("data deve ser um objeto JSON")
-        missing = [column for column in self.columns if column not in data]
+        missing = [
+            column for column in self.columns
+            if column not in data and column not in self.defaults
+        ]
         if missing:
             raise ContractError(f"campos ausentes: {', '.join(missing)}")
         unknown = sorted(set(data) - set(self.columns))
         if unknown:
             raise ContractError(f"campos desconhecidos: {', '.join(unknown)}")
-        return tuple(self.converters[column](data[column]) for column in self.columns)
+        return tuple(
+            self.converters[column](data[column]) if column in data else self.defaults[column]
+            for column in self.columns
+        )
 
 
 TABLE_CONTRACTS: dict[str, TableContract] = {
@@ -93,7 +108,7 @@ TABLE_CONTRACTS: dict[str, TableContract] = {
             "block_number", "block_hash", "block_timestamp", "base_fee_per_gas",
             "next_base_fee", "gas_used", "gas_limit", "tx_count",
             "priority_fee_p10", "priority_fee_p50", "priority_fee_p90",
-            "burned_wei", "eth_usd",
+            "burned_wei", "total_fee_wei", "eth_usd",
         ),
         converters={
             "block_number": as_uint, "block_hash": as_text,
@@ -101,8 +116,11 @@ TABLE_CONTRACTS: dict[str, TableContract] = {
             "next_base_fee": as_uint, "gas_used": as_uint, "gas_limit": as_uint,
             "tx_count": as_uint, "priority_fee_p10": as_uint,
             "priority_fee_p50": as_uint, "priority_fee_p90": as_uint,
-            "burned_wei": as_uint, "eth_usd": as_decimal,
+            "burned_wei": as_uint, "total_fee_wei": as_uint,
+            "eth_usd": as_decimal,
         },
+        # Arquivos escritos antes de total_fee_wei existir seguem validos.
+        defaults={"total_fee_wei": 0},
     ),
     "mempool_samples": TableContract(
         columns=(

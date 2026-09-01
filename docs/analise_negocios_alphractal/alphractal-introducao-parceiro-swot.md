@@ -26,7 +26,7 @@ O posicionamento central da Alphractal é o de **consolidador**: entregar, em um
 
 Sobre essa base de dados, a empresa entrega quatro produtos principais:
 
-- **Plataforma web** — dashboards customizáveis (drag-and-drop de gráficos, texto, fórmulas e resumos de IA), screener institucional por ativo e alertas multicondicionais com notificação via e-mail, Telegram e in-app;
+- **Plataforma web** — dashboards customizáveis (drag-and-drop de gráficos, texto, fórmulas e resumos de IA), screener institucional por ativo e alertas multicondicionais com notificação na plataforma e por canais externos;
 - **Alpha AI** — copiloto que responde perguntas de mercado em linguagem natural e gera relatórios de pesquisa a partir do acervo de métricas;
 - **API unificada** — endpoints REST e WebSocket voltados a modelos quantitativos, dashboards próprios e integrações;
 - **Research & relatórios** — publicações periódicas, incluindo entregas white-label para clientes institucionais.
@@ -104,6 +104,5 @@ Esta análise foi construída a partir de fontes públicas e do documento de req
 - Documentação de métricas — https://alphractal.github.io/metrics-docs/
 - Guia da plataforma e API — https://docs.alphractal.com/
 - Perfil corporativo (ZoomInfo) — https://www.zoominfo.com/c/alphractal/1340767540
-- Canais de research e atualizações de produto — @Alphractal (X) e t.me/alphractal
 
 *Documento elaborado em agosto de 2026. Dados de produto e precificação sujeitos a alteração — reconfirmar antes da entrega final.*

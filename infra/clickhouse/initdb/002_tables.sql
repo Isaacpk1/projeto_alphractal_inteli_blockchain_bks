@@ -15,6 +15,14 @@ CREATE TABLE IF NOT EXISTS alphractal.eth_blocks
     priority_fee_p50    UInt64,
     priority_fee_p90    UInt64,
     burned_wei          UInt128,
+    -- Soma de gasUsed x effectiveGasPrice dos recibos do bloco: a taxa que os
+    -- usuarios REALMENTE pagaram, base fee mais gorjeta, transacao a transacao.
+    -- Nao e derivavel das outras colunas: priority_fee_p50 e a MEDIANA da
+    -- gorjeta, e transacoes caras (contratos, MEV) ficam muito acima dela e
+    -- consomem muito gas, entao estimar por ela subestima o total em ~50%.
+    -- DEFAULT 0 marca a linha ingerida antes desta coluna existir; o front
+    -- distingue "zero" de "nao coletado" caindo na estimativa antiga.
+    total_fee_wei       UInt128 DEFAULT 0,
     eth_usd             Decimal(18, 6)
 )
 ENGINE = ReplacingMergeTree(ingested_at)

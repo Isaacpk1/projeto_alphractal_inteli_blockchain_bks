@@ -123,13 +123,30 @@ function periodDays(period: MetricPeriod): number {
   const now = new Date();
   return Math.max(1, Math.ceil((now.getTime() - Date.UTC(now.getUTCFullYear(), 0, 1)) / 86_400_000));
 }
-function metricValue(metric: MetricId, row: FeeHistoryPointResponse): number {
-  // O rollup persiste a base fee queimada e a priority fee média. Recompomos
-  // uma estimativa do total porque o agregado não guarda tips transação a transação.
+/**
+ * Total de taxas do bucket, em ETH.
+ *
+ * O rollup agora persiste `total_fee_eth`: a soma de `gasUsed x
+ * effectiveGasPrice` de cada transação, que é o número que as plataformas de
+ * referência publicam (confere com a métrica FeeTotNtv da Coin Metrics).
+ *
+ * O ramo de estimativa só sobrevive para os buckets ingeridos antes da coluna
+ * existir, onde ela vale zero. Ele reconstrói o total a partir da MEDIANA da
+ * gorjeta e por isso erra para baixo — em 27/08/2026 dava 87,70 ETH contra os
+ * 181,45 ETH reais, porque contratos, MEV e liquidações pagam muito acima da
+ * mediana e consomem muito gas. É um fallback para não exibir zero, não uma
+ * alternativa legítima: refaça o backfill do período para eliminá-lo.
+ */
+function totalFeesEth(row: FeeHistoryPointResponse): number {
+  if (row.totalFeeEth > 0) return row.totalFeeEth;
   const feeRatio = row.baseFeeGweiAvg > 0
     ? (row.baseFeeGweiAvg + row.priorityFeeGweiAvg) / row.baseFeeGweiAvg
     : 1;
-  const totalEth = row.burnedEth * feeRatio;
+  return row.burnedEth * feeRatio;
+}
+
+function metricValue(metric: MetricId, row: FeeHistoryPointResponse): number {
+  const totalEth = totalFeesEth(row);
   if (metric === 'total-fees-eth') return totalEth;
   if (metric === 'total-fees-usd') return totalEth * row.ethUsdAvg;
   if (metric === 'mean-tx-fee-eth') return row.txCount > 0 ? totalEth / row.txCount : 0;

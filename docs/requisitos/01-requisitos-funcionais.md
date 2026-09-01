@@ -11,7 +11,7 @@ RF-01 a RF-40. Prioridade: **[M]** Must · **[S]** Should · **[C]** Could
 | ID | Requisito | Prio |
 |---|---|---|
 | RF-01 | O sistema deve manter uma conexão WebSocket persistente com um provedor RPC Ethereum e se inscrever no evento de novos blocos (`newHeads`). | M |
-| RF-02 | A cada novo bloco, o sistema deve extrair `number`, `timestamp`, `baseFeePerGas`, `gasUsed` e `gasLimit`. | M |
+| RF-02 | A cada novo bloco, o sistema deve extrair `number`, `timestamp`, `baseFeePerGas`, `gasUsed` e `gasLimit`, além de somar `gasUsed × effectiveGasPrice` dos recibos para o histórico de Total Fees. | M |
 | RF-03 | O sistema deve consultar `eth_feeHistory` para derivar percentis de *priority fee* (gorjeta) dos últimos **`N_fee` = 20** blocos (RN-10). | M |
 | RF-04 | O sistema deve reconectar automaticamente ao RPC com *backoff* exponencial em caso de queda, sem derrubar os clientes conectados. | M |
 | RF-05 | O sistema deve possuir um modo de contingência por *polling* HTTP (`eth_blockNumber` / `eth_getBlockByNumber`) caso o WebSocket fique indisponível. | S |
@@ -69,7 +69,7 @@ RF-01 a RF-40. Prioridade: **[M]** Must · **[S]** Should · **[C]** Could
 
 | ID | Requisito | Prio |
 |---|---|---|
-| RF-34 | O .NET deve gravar cada bloco processado no spool NDJSON, e o ETL Python deve carregá-lo no ClickHouse **em lote** (~25 registros ou 300 s por `INSERT`) — nunca linha a linha. | S |
+| RF-34 | O .NET deve gravar cada bloco processado no spool NDJSON, incluindo `burned_wei` e `total_fee_wei`, e o ETL Python deve carregá-lo no ClickHouse **em lote** (~25 registros ou 300 s por `INSERT`) — nunca linha a linha. | S |
 | RF-35 | Ao iniciar, o .NET deve recarregar a janela quente consultando o ClickHouse com `FINAL`/`argMax()`, para que o painel abra já com o gráfico populado. | S |
 | RF-36 | O ETL deve oferecer um script de *backfill* sob demanda, detectando lacunas de blocos e buscando-as via RPC, com controle explícito de consumo de CU. | C |
 | RF-37 | Agregados **horários e diários** devem ser recalculados pelo ETL para os buckets afetados e persistidos em `ReplacingMergeTree`; a retenção dos dados brutos usa `TTL` declarativo (30 dias, RN-15). | C |

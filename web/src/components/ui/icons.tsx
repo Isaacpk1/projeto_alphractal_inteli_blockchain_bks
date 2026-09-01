@@ -257,11 +257,3 @@ export const ChevronLeftIcon = (p: IconProps) => (
     <path d="m15 5-7 7 7 7" />
   </Base>
 );
-
-/** Marca geométrica compacta para o recorte visual da plataforma. */
-export const LogoMark = ({ size = 34 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 36 36" aria-hidden="true">
-    <path d="M5 30 15.2 6h5.6L31 30h-6.2l-2.2-5.8h-9.4L11 30H5Z" fill="currentColor" opacity=".92" />
-    <path d="m10.5 20 18-9-3 7-15 7v-5Z" fill="var(--bg-sidebar)" opacity=".9" />
-  </svg>
-);

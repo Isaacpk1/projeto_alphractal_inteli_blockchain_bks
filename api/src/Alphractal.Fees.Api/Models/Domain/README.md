@@ -1,6 +1,7 @@
 # Models/Domain — o "M" do MVC
 
-Entidades do domínio: bloco, janela quente, amostra de mempool, estimativa de taxa.
+Entidades do domínio: bloco, janela quente, amostra de mempool, estimativa de
+taxa e total efetivamente pago por bloco (`BlockFeeTotals`).
 
 **Regras**
 

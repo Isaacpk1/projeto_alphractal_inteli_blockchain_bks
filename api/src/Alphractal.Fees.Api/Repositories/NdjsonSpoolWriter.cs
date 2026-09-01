@@ -61,6 +61,7 @@ public sealed class NdjsonSpoolWriter : ISpoolWriter
         BigInteger nextBaseFee,
         PriorityFeeSample tiers,
         uint transactionCount,
+        BigInteger totalFeeWei,
         IReadOnlyList<FeeEstimate> estimates,
         EthPrice price,
         CancellationToken cancellationToken)
@@ -90,6 +91,10 @@ public sealed class NdjsonSpoolWriter : ISpoolWriter
             Raw(writer, "priority_fee_p50", tiers.Standard);
             Raw(writer, "priority_fee_p90", tiers.Fast);
             Raw(writer, "burned_wei", block.BaseFeePerGas * block.GasUsed);
+            // Zero quando os recibos nao vieram: o contrato do ETL aceita a
+            // coluna ausente ou zerada, e o painel cai na estimativa antiga em
+            // vez de exibir um total falso.
+            Raw(writer, "total_fee_wei", totalFeeWei);
             writer.WriteString("eth_usd", usd);
         }));
 

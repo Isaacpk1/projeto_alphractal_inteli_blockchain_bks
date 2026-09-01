@@ -95,6 +95,19 @@ docker compose exec clickhouse clickhouse-client \
 
 Os dados do seed são sintéticos e não servem para análise de negócio.
 
+### Calibrar o Total Fees legado de 25–30/08/2026
+
+Esses dias foram coletados antes de `total_fee_wei` existir. Para reproduzir no
+gráfico os agregados públicos `FeeTotNtv` usados como referência pela Alphractal,
+sem baixar novamente os recibos de ~43 mil blocos, aplique a carga idempotente:
+
+```powershell
+cmd /c "docker compose exec -T clickhouse clickhouse-client --user alphractal --password alphractal_dev --multiquery < scripts\load_reference_total_fees_2026_08.sql"
+```
+
+A carga substitui somente os seis rollups diários; blocos brutos, buckets
+horários e a coleta nova por recibos não são alterados.
+
 ## Retenção
 
 - blocos e estimativas: 30 dias;

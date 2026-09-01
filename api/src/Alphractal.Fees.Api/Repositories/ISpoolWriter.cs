@@ -12,6 +12,7 @@ public interface ISpoolWriter : IAsyncDisposable
         System.Numerics.BigInteger nextBaseFee,
         PriorityFeeSample tiers,
         uint transactionCount,
+        System.Numerics.BigInteger totalFeeWei,
         IReadOnlyList<FeeEstimate> estimates,
         EthPrice price,
         CancellationToken cancellationToken);

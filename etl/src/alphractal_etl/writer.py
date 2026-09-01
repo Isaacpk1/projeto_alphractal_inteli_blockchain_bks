@@ -104,6 +104,7 @@ SELECT
     avg(gas_used / greatest(gas_limit, 1)) AS gas_used_ratio_avg,
     sum(tx_count) AS tx_count,
     sum(burned_wei) AS burned_wei,
+    sum(total_fee_wei) AS total_fee_wei,
     avg(eth_usd) AS eth_usd_avg
 FROM
 (

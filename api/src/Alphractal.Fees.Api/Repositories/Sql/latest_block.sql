@@ -12,6 +12,7 @@ SELECT
     gas_used_ratio,
     tx_count,
     burned_eth,
+    total_fee_eth,
     eth_usd,
     age_ms
 FROM v_latest_block

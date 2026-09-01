@@ -31,6 +31,10 @@ class FakeAlchemy:
             for number in block_numbers
         ]
 
+    def get_block_fee_totals(self, block_numbers: list[int]):
+        # gasUsed x effectiveGasPrice somado: aqui, 10 de gas a 300 wei por bloco.
+        return {number: (3_000, 1) for number in block_numbers}
+
 
 def test_backfill_uses_fee_history_next_base_fee_without_reprojecting(tmp_path: Path) -> None:
     config = BackfillConfig(10, 11, Decimal("3200"), 100, tmp_path, "unused")
@@ -40,6 +44,8 @@ def test_backfill_uses_fee_history_next_base_fee_without_reprojecting(tmp_path: 
     assert records[0]["data"]["next_base_fee"] == 105
     assert records[1]["data"]["next_base_fee"] == 110
     assert records[1]["data"]["burned_wei"] == 1050
+    # O total pago vem do recibo, nao de uma reconstrucao a partir da mediana.
+    assert records[0]["data"]["total_fee_wei"] == 3_000
 
 
 class FakeAlchemyLongo:
@@ -63,6 +69,10 @@ class FakeAlchemyLongo:
             }
             for number in block_numbers
         ]
+
+    def get_block_fee_totals(self, block_numbers: list[int]):
+        # gasUsed x effectiveGasPrice somado: aqui, 10 de gas a 300 wei por bloco.
+        return {number: (3_000, 1) for number in block_numbers}
 
 
 def test_um_arquivo_agrupa_varios_lotes_de_rpc(tmp_path: Path) -> None:

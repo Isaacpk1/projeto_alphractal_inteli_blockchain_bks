@@ -41,30 +41,38 @@ O ClickHouse deve estar inicializado pela pasta `infra/`. Os inserts usam
 Cada linha e um objeto independente:
 
 ```json
-{"table":"eth_blocks","data":{"block_number":123,"block_hash":"0x...","block_timestamp":"2026-08-29T12:00:00Z","base_fee_per_gas":100,"next_base_fee":101,"gas_used":15000000,"gas_limit":30000000,"tx_count":10,"priority_fee_p10":1,"priority_fee_p50":2,"priority_fee_p90":3,"burned_wei":1500000000,"eth_usd":"3200.000000"}}
+{"table":"eth_blocks","data":{"block_number":123,"block_hash":"0x...","block_timestamp":"2026-08-29T12:00:00Z","base_fee_per_gas":100,"next_base_fee":101,"gas_used":15000000,"gas_limit":30000000,"tx_count":10,"priority_fee_p10":1,"priority_fee_p50":2,"priority_fee_p90":3,"burned_wei":1500000000,"total_fee_wei":4200000000,"eth_usd":"3200.000000"}}
 ```
 
 Tabelas aceitas e suas colunas ficam em `src/alphractal_etl/contract.py`. Campo
 ausente, campo desconhecido, inteiro negativo ou timestamp sem timezone rejeita o
-arquivo inteiro antes de qualquer insert.
+arquivo inteiro antes de qualquer insert. A única compatibilidade legada é
+`total_fee_wei`: se ausente, assume zero para não perder arquivos já fechados
+pela versão anterior. Zero significa "não coletado", não "taxa gratuita".
 
 ## Backfill
 
 Backfill e o unico comando que acessa a Alchemy diretamente. Ele ancora
 `eth_feeHistory` em um numero de bloco explicito e usa o valor adicional de
-`baseFeePerGas` como taxa do proximo bloco, sem projetar novamente.
+`baseFeePerGas` como taxa do proximo bloco, sem projetar novamente. Também busca
+`eth_getBlockReceipts` em sublotes próprios e soma `gasUsed × effectiveGasPrice`
+para produzir o Total Fees real.
 
 ```bash
 alphractal-etl backfill \
   --from-block 23000000 \
   --to-block 23000100 \
-  --eth-usd 3200.00
+  --eth-usd 3200.00 \
+  --recibos-por-lote 8
 alphractal-etl run
 ```
 
 `--eth-usd` e obrigatorio porque gravar preco zero ou inventado corromperia as
 metricas financeiras. Para uma carga longa, divida o intervalo por janelas de
 preco historico.
+
+Respostas de recibos são grandes. `--recibos-por-lote` aceita 0–64; `0` desliga
+a coleta do total e deve ser usado apenas quando esse dado não for necessário.
 
 ## Modulos
 

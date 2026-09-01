@@ -16,6 +16,7 @@ SELECT
     gas_used_ratio_avg,
     tx_count,
     burned_eth,
+    total_fee_eth,
     eth_usd_avg
 FROM v_eth_fees_1d
 WHERE bucket >= toDate({from:DateTime('UTC')})

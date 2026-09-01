@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS alphractal.eth_fees_rollup
     gas_used_ratio_avg Float64,
     tx_count          UInt64,
     burned_wei        UInt128,
+    -- Soma do total efetivamente pago no bucket (base fee + gorjeta).
+    total_fee_wei     UInt128 DEFAULT 0,
     eth_usd_avg       Decimal(18, 6)
 )
 ENGINE = ReplacingMergeTree(calculated_at)

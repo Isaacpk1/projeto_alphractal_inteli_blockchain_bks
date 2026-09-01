@@ -11,6 +11,7 @@ SELECT
     gas_used / greatest(gas_limit, 1) AS gas_used_ratio,
     tx_count,
     toFloat64(burned_wei) / 1e18 AS burned_eth,
+    toFloat64(total_fee_wei) / 1e18 AS total_fee_eth,
     eth_usd,
     dateDiff('millisecond', block_timestamp, now64(3, 'UTC')) AS age_ms
 FROM alphractal.eth_blocks FINAL
@@ -60,6 +61,7 @@ SELECT
     gas_used_ratio_avg,
     tx_count,
     toFloat64(burned_wei) / 1e18 AS burned_eth,
+    toFloat64(total_fee_wei) / 1e18 AS total_fee_eth,
     eth_usd_avg
 FROM alphractal.eth_fees_rollup FINAL
 WHERE granularity = 'hour';
@@ -79,6 +81,7 @@ SELECT
     gas_used_ratio_avg,
     tx_count,
     toFloat64(burned_wei) / 1e18 AS burned_eth,
+    toFloat64(total_fee_wei) / 1e18 AS total_fee_eth,
     eth_usd_avg
 FROM alphractal.eth_fees_rollup FINAL
 WHERE granularity = 'day';

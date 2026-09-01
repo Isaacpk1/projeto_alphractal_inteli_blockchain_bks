@@ -15,3 +15,6 @@ Popula 30 dias de blocos para habilitar os diferenciais D-02 (percentis) e D-04
   da ingestão normal.
 - `eth_feeHistory` é ancorado no bloco final do lote. O valor adicional de
   `baseFeePerGas` é a taxa do próximo bloco e não deve ser projetado novamente.
+- `eth_getBlockReceipts` usa lote próprio (`--recibos-por-lote`, padrão 8), pois
+  os logs tornam a resposta muito maior que o cabeçalho. A soma de
+  `gasUsed × effectiveGasPrice` preenche `total_fee_wei` sem estimar gorjetas.

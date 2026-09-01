@@ -2,7 +2,7 @@
 
 Módulo de telemetria ao vivo para a aba **"Fees"** da plataforma [Alphractal](https://alphractal.com), desenvolvido pela **Diretoria de Projetos do Inteli Blockchain**.
 
-> **Estado:** especificação de requisitos concluída · desenvolvimento inicia em 14/09/2026
+> **Estado:** protótipo funcional integrado · caminho quente e frio validados localmente em 01/09/2026
 > **Entrega:** Protótipo Funcional (MVP) · Demo Day em 05/10/2026
 
 ---
@@ -19,7 +19,19 @@ Este projeto entrega a camada que falta — **telemetria ao vivo que traduz dado
 - Estima três faixas de velocidade (**Lento / Padrão / Rápido**) a partir dos percentis de *priority fee*
 - Calcula um **índice de congestionamento** da rede e projeta a base fee do próximo bloco pela regra determinística do EIP-1559
 - Estima o custo por **tipo de operação** — transferência, ERC-20, swap, approve, mint
+- Soma a taxa **efetivamente paga** em cada bloco pelos recibos (`gasUsed × effectiveGasPrice`) e publica os agregados históricos em ETH e USD
 - Entrega tudo ao painel por **SSE**, com latência-alvo de **menos de 2 segundos** entre o bloco e a tela
+
+## Demonstração
+
+O vídeo mostra o sistema rodando de ponta a ponta: o painel recebendo bloco a
+bloco pelo SSE, as faixas de velocidade e o índice de congestionamento se
+movendo com a rede, e a aba de métricas históricas servida pelo ClickHouse.
+
+**▶ [Assistir à demonstração](https://drive.google.com/file/d/1U2_OOmxOk1aow6j7YpKVERHS2CP1kAMU/view?usp=sharing)** · Google Drive
+
+Vale assistir antes de subir o ambiente: o caminho quente depende de uma chave
+da Alchemy, e o vídeo mostra o comportamento ao vivo sem precisar de uma.
 
 ## Arquitetura
 
@@ -28,8 +40,8 @@ Dois caminhos independentes. **O tempo real nunca passa por Python nem por Click
 ```
 CAMINHO QUENTE (< 2 s)                       CAMINHO FRIO (minutos)
 
-Alchemy ──WebSocket──▶ .NET (MVC)            .NET ──spool NDJSON──▶ Python ETL
-                        ├─ Nethereum                                     │
+Alchemy ──WS + HTTP──▶ .NET (MVC)            .NET ──spool NDJSON──▶ Python ETL
+                        ├─ newHeads + recibos                            │
                         ├─ regras RN-01..05                              ▼
                         ├─ 300 blocos em RAM                        ClickHouse
                         └─ broadcaster SSE                       (rollups
@@ -77,17 +89,35 @@ A especificação completa está em **[`docs/requisitos/`](./docs/requisitos/REA
 |---|---|
 | [Requisitos funcionais](./docs/requisitos/01-requisitos-funcionais.md) | RF-01 a RF-40 |
 | [Requisitos não funcionais](./docs/requisitos/02-requisitos-nao-funcionais.md) | RNF-01 a RNF-31 |
-| [Regras de negócio](./docs/requisitos/03-regras-de-negocio.md) | RN-01 a RN-16 — as fórmulas |
+| [Regras de negócio](./docs/requisitos/03-regras-de-negocio.md) | RN-01 a RN-17 — as fórmulas |
 | [Arquitetura](./docs/requisitos/09-arquitetura-e-stack.md) | caminho quente vs frio, MVC, linha de corte |
 | [Riscos](./docs/requisitos/07-riscos.md) | R-01 a R-20 |
 | [ADR-001](./docs/adr/001-mvc-sem-views.md) | por que não existe pasta `Views/` |
+| [ADR-002](./docs/adr/002-arquitetura-frontend.md) | arquitetura e isolamento de renderização do frontend |
+| [ADR-003](./docs/adr/003-metricas-historicas.md) | catálogo e navegação das métricas históricas |
+| [ADR-004](./docs/adr/004-total-de-taxas-vem-do-recibo.md) | por que Total Fees vem dos recibos, não da mediana da gorjeta |
 | [Orçamento RPC](./docs/requisitos/08-orcamento-rpc.md) | consumo em Compute Units por funcionalidade |
 
 ## Como rodar
 
-O ClickHouse local sobe por `infra/docker-compose.yml`. O ETL é instalado como
-pacote Python e drena o spool em ciclos; consulte [`etl/README.md`](./etl/README.md).
-API e painel ainda estão em implementação.
+O ambiente completo de dados e API sobe pelo Compose; o Vite roda no host:
+
+```powershell
+cd infra
+docker compose up -d --build
+
+cd ..\web
+npm install
+npm run dev
+```
+
+Abra `http://localhost:5173`. A API fica em `http://localhost:5080`; o Vite
+encaminha `/api` para ela. Consulte os guias de [`infra/`](./infra/README.md),
+[`api/`](./api/README.md), [`etl/`](./etl/README.md) e [`web/`](./web/README.md).
+
+Copie os arquivos `.env.example` e use chaves locais. Arquivos `.env` são
+ignorados pelo Git; se uma chave aparecer em log, captura de tela ou conversa,
+revogue-a e gere outra.
 
 ## Escopo — o que este projeto **não** é
 

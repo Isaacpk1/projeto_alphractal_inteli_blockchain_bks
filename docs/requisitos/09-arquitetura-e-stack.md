@@ -28,6 +28,7 @@ Por isso a arquitetura se divide em dois caminhos independentes:
    Alchemy (WebSocket)    │  CAMINHO QUENTE  —  alvo: < 2 s          │
    newHeads ─────────────▶│  .NET / ASP.NET Core                     │
    eth_feeHistory ───────▶│   • ingestão + reconexão (Nethereum)     │
+   blockReceipts ────────▶│   • total efetivamente pago por bloco    │
                           │   • cálculo das regras RN-01 a RN-05     │
                           │   • janela de 300 blocos EM MEMÓRIA      │
                           │   • fan-out via Channel<T>               │
@@ -59,7 +60,7 @@ Isso reforça a **RN-14** (o banco não serve tempo real), que já estava na esp
 
 | Responsabilidade | Implementação |
 |---|---|
-| Ingestão RPC | **Nethereum** (`StreamingWebSocketClient` + `EthNewBlockHeadersObservableSubscription`) dentro de um `BackgroundService` |
+| Ingestão RPC | **Nethereum**: `newHeads` por WebSocket e `eth_feeHistory`/`eth_getBlockReceipts` por HTTP dentro de um `BackgroundService` |
 | Regras de negócio | RN-01 a RN-05, usando `System.Numerics.BigInteger` |
 | Janela quente | Ring buffer em memória, 300 blocos (RN-10) |
 | Fan-out para N clientes | `System.Threading.Channels.Channel<T>` — um produtor (RPC), N consumidores (SSE) |
@@ -76,7 +77,7 @@ Isso reforça a **RN-14** (o banco não serve tempo real), que já estava na esp
 | Responsabilidade | Observação |
 |---|---|
 | Consumir os lotes do spool e carregar no ClickHouse | `clickhouse-connect`, inserts em lote |
-| Backfill histórico | Popular 30 dias de blocos para habilitar D-02 e D-04 |
+| Backfill histórico | Popular blocos, percentis e recibos; os recibos preenchem o Total Fees real |
 | Enriquecimento | Cotação ETH/USD histórica, rótulos de contratos (D-06) |
 | Validação e qualidade | Detectar lacunas de blocos, reconciliar contra o RPC |
 
@@ -150,6 +151,7 @@ Quatro tecnologias e quatro runtimes (TypeScript, C#, Python, SQL) em ~2 semanas
 | **RN-08 / RN-16** (reorg) | De `UPSERT` para `ReplacingMergeTree` + coluna de versão, com dedup assíncrona |
 | **RN-15** (retenção) | Vira `TTL` declarativo na tabela |
 | **RF-37** (agregados) | Recomputação idempotente dos buckets afetados pelo ETL |
+| **RN-17 / ADR-004** (Total Fees) | Soma `gasUsed × effectiveGasPrice` dos recibos; não estima pela mediana da gorjeta |
 | **RNF-13** (tipagem) | `TypeScript strict` no front; `<Nullable>enable</Nullable>` + warnings como erro no .NET; `mypy` no Python |
 | **RNF-22** (execução local) | `docker-compose` deixa de ser opcional — ClickHouse exige container |
 | **R-03** (precisão float) | **Risco praticamente eliminado** pelo `BigInteger` nativo |
@@ -296,7 +298,8 @@ cotação), e 6 blocos por minuto fecham lotes de 102 linhas.
 Dois cuidados que se mostraram necessários na prática:
 
 - **Wei sai como número JSON cru**, sem passar por `double` nem `ulong`.
-  `burned_wei` excede 2⁶⁴ em pico; a coluna é `UInt128` e o `int()` do Python não
+  `burned_wei` e `total_fee_wei` podem exceder 2⁶⁴ em pico; as colunas são
+  `UInt128` e o `int()` do Python não
   tem limite. Converter para `ulong` quebraria silenciosamente em rede congestionada.
 - **Latência de heartbeat vai com piso zero.** O contrato rejeita inteiro unsigned
   negativo, e rejeição manda o **arquivo inteiro** para `failed/`. Um relógio

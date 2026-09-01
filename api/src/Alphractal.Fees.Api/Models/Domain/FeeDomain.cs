@@ -37,6 +37,29 @@ public sealed record PriorityFeeSample
     };
 }
 
+/// <summary>
+/// O que os recibos de UM bloco somam: taxa efetivamente paga e numero de
+/// transacoes.
+/// </summary>
+/// <remarks>
+/// <see cref="TotalFeeWei"/> e a soma de <c>gasUsed x effectiveGasPrice</c> de
+/// cada recibo — base fee queimada MAIS gorjeta, transacao a transacao. Nao e
+/// derivavel dos percentis do <c>eth_feeHistory</c>: aqueles sao MEDIANAS, e a
+/// distribuicao de gorjetas tem cauda pesada (contratos, MEV e liquidacoes
+/// pagam muito acima da mediana e consomem muito gas). Reconstruir o total a
+/// partir do percentil 50 errava por cerca de metade.
+/// <para>
+/// <see cref="TransactionCount"/> vem de graca na mesma resposta — um recibo por
+/// transacao — e por isso a ingestao deixa de gastar uma chamada separada de
+/// <c>eth_getBlockTransactionCountByNumber</c> quando os recibos chegam.
+/// </para>
+/// </remarks>
+public sealed record BlockFeeTotals
+{
+    public required BigInteger TotalFeeWei { get; init; }
+    public required uint TransactionCount { get; init; }
+}
+
 /// <summary>Custo estimado de uma operacao numa faixa de velocidade (RN-01).</summary>
 public sealed record FeeEstimate
 {

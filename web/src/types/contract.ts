@@ -126,6 +126,15 @@ export interface FeeHistoryPointResponse {
   gasUsedRatioAvg: number;
   txCount: number;
   burnedEth: number;
+  /**
+   * Taxa efetivamente paga no bucket (base fee + gorjeta), somando
+   * `gasUsed x effectiveGasPrice` de cada transação.
+   *
+   * `0` significa "não coletado" — blocos ingeridos antes de a coluna existir.
+   * Não existe bucket com blocos e taxa zero, então o front trata o zero como
+   * ausência e volta à estimativa antiga.
+   */
+  totalFeeEth: number;
   ethUsdAvg: number;
 }
 
@@ -162,7 +171,7 @@ export interface LatestBlockResponse {
   blockNumber: number; blockTimestampUtc: string; baseFeeGwei: number;
   nextBaseFeeGwei: number; priorityFeeGwei: number; gasUsed: number;
   gasLimit: number; gasUsedRatio: number; txCount: number; burnedEth: number;
-  ethUsd: number; dataAgeSeconds: number; source: 'cold';
+  totalFeeEth: number; ethUsd: number; dataAgeSeconds: number; source: 'cold';
 }
 export interface MempoolNowResponse {
   sampledAtUtc: string; blockNumber: number; pendingBlockTxCount: number;

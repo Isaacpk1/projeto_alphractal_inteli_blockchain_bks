@@ -8,7 +8,7 @@
 
 ## Contexto
 
-Em 18/08/2026 o parceiro definiu a stack por mensagem de WhatsApp e escreveu
+Em 18/08/2026 o parceiro definiu a stack por comunicação assíncrona e escreveu
 *"estrutura MVC"* para o back-end .NET, sem detalhar. A frase é ambígua: no
 ASP.NET Core existem **dois templates diferentes** que atendem por esse nome.
 

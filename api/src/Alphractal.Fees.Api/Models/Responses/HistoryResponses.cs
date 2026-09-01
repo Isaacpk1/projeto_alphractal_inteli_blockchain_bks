@@ -20,6 +20,21 @@ public sealed record LatestBlockResponse
     public required double GasUsedRatio { get; init; }
     public required uint TxCount { get; init; }
     public required double BurnedEth { get; init; }
+    /// <summary>
+    /// Taxa efetivamente paga no bucket, em ETH: soma de
+    /// <c>gasUsed x effectiveGasPrice</c> de todas as transacoes.
+    /// </summary>
+    /// <remarks>
+    /// Nao confundir com <c>BurnedEth</c>, que e so a parcela queimada pela base
+    /// fee. Este e o total — base fee mais gorjeta.
+    /// <para>
+    /// <c>0</c> significa "nao coletado": sao os blocos ingeridos antes de
+    /// <c>total_fee_wei</c> existir. Zero de taxa num bucket com blocos nao
+    /// acontece na pratica, entao quem consome pode tratar o zero como ausencia
+    /// e cair na estimativa antiga em vez de exibir um total falso.
+    /// </para>
+    /// </remarks>
+    public required double TotalFeeEth { get; init; }
     public required decimal EthUsd { get; init; }
 
     /// <summary>Idade do dado em segundos — alimenta o aviso de "dado atrasado" (RN-07).</summary>
@@ -84,6 +99,21 @@ public sealed record FeeHistoryPointResponse
     public required double GasUsedRatioAvg { get; init; }
     public required ulong TxCount { get; init; }
     public required double BurnedEth { get; init; }
+    /// <summary>
+    /// Taxa efetivamente paga no bucket, em ETH: soma de
+    /// <c>gasUsed x effectiveGasPrice</c> de todas as transacoes.
+    /// </summary>
+    /// <remarks>
+    /// Nao confundir com <c>BurnedEth</c>, que e so a parcela queimada pela base
+    /// fee. Este e o total — base fee mais gorjeta.
+    /// <para>
+    /// <c>0</c> significa "nao coletado": sao os blocos ingeridos antes de
+    /// <c>total_fee_wei</c> existir. Zero de taxa num bucket com blocos nao
+    /// acontece na pratica, entao quem consome pode tratar o zero como ausencia
+    /// e cair na estimativa antiga em vez de exibir um total falso.
+    /// </para>
+    /// </remarks>
+    public required double TotalFeeEth { get; init; }
     public required decimal EthUsdAvg { get; init; }
 }
 

@@ -34,8 +34,8 @@ Alchemy ──WebSocket──▶ .NET                  .NET ──spool NDJSON�
                         ├─ Nethereum                                     │
                         ├─ regras RN-01..05                              ▼
                         ├─ 300 blocos em RAM                        ClickHouse
-                        └─ fan-out Channel<T>                     (materialized
-                              │ SSE                                   views)
+                        └─ fan-out Channel<T>                      (rollups
+                              │ SSE                                idempotentes)
                               ▼                                          │
                         React (painel)  ◀──── /api/history ── .NET ◀──────┘
 ```
@@ -52,7 +52,7 @@ Alchemy ──WebSocket──▶ .NET                  .NET ──spool NDJSON�
 |---|---|
 | [01 — Requisitos Funcionais](./01-requisitos-funcionais.md) | RF-01 a RF-40 — o que o sistema faz (22 Must · 12 Should · 6 Could) |
 | [02 — Requisitos Não Funcionais](./02-requisitos-nao-funcionais.md) | RNF-01 a RNF-31 — como o sistema se comporta |
-| [03 — Regras de Negócio](./03-regras-de-negocio.md) | RN-01 a RN-16 — fórmulas e decisões de domínio |
+| [03 — Regras de Negócio](./03-regras-de-negocio.md) | RN-01 a RN-17 — fórmulas e decisões de domínio |
 | [04 — Persistência e Banco de Dados](./04-persistencia-banco-de-dados.md) | Decisão de banco, modelo de dados, retenção |
 | [05 — Backlog de Diferenciais](./05-backlog-diferenciais.md) | Ideias de valor agregado, com esforço e critérios de aceite |
 | [06 — Dúvidas para o Kick-off](./06-duvidas-kickoff.md) | 29 dúvidas — 8 encerradas, 4 bloqueantes abertas |
@@ -73,7 +73,7 @@ Alchemy ──WebSocket──▶ .NET                  .NET ──spool NDJSON�
 
 | | |
 |---|---|
-| Última revisão | 24/08/2026 — incorporação das respostas do parceiro de 18/08 |
+| Última revisão | 01/09/2026 — implementação integrada e Total Fees validado contra Coin Metrics |
 | Dúvidas bloqueantes | **4** — chave RPC (1), design (11), "4 métricas misteriosas" (26), "nível diário" (27) |
 | Próximo marco | Kick-off, 14/09/2026 |
 

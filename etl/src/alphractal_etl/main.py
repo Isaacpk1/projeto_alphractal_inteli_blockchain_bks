@@ -98,6 +98,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="blocos por arquivo de spool (>= batch-size). Arquivos maiores = menos "
              "INSERTs no ClickHouse. 0 usa o batch-size")
     backfill_parser.add_argument(
+        "--recibos-por-lote", type=int, default=8, dest="recibos_por_lote",
+        help="blocos por chamada eth_getBlockReceipts (0-64), que preenche "
+             "total_fee_wei. Lote proprio e menor porque o recibo traz os logs "
+             "de cada transacao: um bloco cheio passa de 1 MB. 0 desliga a "
+             "coleta e o painel segue estimando as gorjetas pela mediana")
+    backfill_parser.add_argument(
         "--pausa-lote", type=float, default=0.0, dest="pausa_lote",
         help="segundos entre requisicoes RPC. O limite da Alchemy e por SEGUNDO: "
              "sem ritmo, uma rajada estoura mesmo com poucos lotes")
@@ -122,6 +128,7 @@ def main() -> None:
             batch_size=args.batch_size,
             blocks_per_file=args.blocks_per_file,
             intervalo_minimo=args.pausa_lote,
+            recibos_por_lote=args.recibos_por_lote,
         )
         generated = run_backfill(config)
         LOGGER.info("backfill concluido: %d arquivos", len(generated))

@@ -35,6 +35,7 @@ public sealed class ClickHouseFeesHistoryRepository : IFeesHistoryRepository
             GasUsedRatio = reader.AsDouble("gas_used_ratio"),
             TxCount = reader.AsUInt32("tx_count"),
             BurnedEth = reader.AsDouble("burned_eth"),
+            TotalFeeEth = reader.AsDouble("total_fee_eth"),
             EthUsd = reader.AsDecimal("eth_usd"),
             AgeMs = reader.AsInt64("age_ms"),
         }, cancellationToken);
@@ -91,6 +92,7 @@ public sealed class ClickHouseFeesHistoryRepository : IFeesHistoryRepository
                 GasUsedRatioAvg = reader.AsDouble("gas_used_ratio_avg"),
                 TxCount = reader.AsUInt64("tx_count"),
                 BurnedEth = reader.AsDouble("burned_eth"),
+                TotalFeeEth = reader.AsDouble("total_fee_eth"),
                 EthUsdAvg = reader.AsDecimal("eth_usd_avg"),
             }, cancellationToken);
     }

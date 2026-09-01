@@ -6,6 +6,21 @@
 --   docker compose exec -T clickhouse clickhouse-client \
 --     --user alphractal --password alphractal_dev --multiquery < scripts/seed_dev.sql
 
+-- Este arquivo trunca as tabelas antes de popular o ambiente. Recusar a
+-- execucao quando ja houver qualquer bloco que nao pertenca ao seed evita
+-- apagar uma carga real ou voltar a misturar os dois conjuntos no mesmo banco.
+-- Os hashes do seed tem 128 bits (34 caracteres com o prefixo 0x); hashes reais
+-- de bloco tem 256 bits.
+SELECT throwIf(
+    (
+        SELECT count()
+        FROM alphractal.eth_blocks FINAL
+        WHERE block_number NOT BETWEEN 23000000 AND 23014399
+           OR length(block_hash) != 34
+    ) > 0,
+    'seed_dev.sql recusado: o banco ja contem blocos reais. Use um volume vazio.'
+);
+
 TRUNCATE TABLE IF EXISTS alphractal.eth_blocks;
 TRUNCATE TABLE IF EXISTS alphractal.mempool_samples;
 TRUNCATE TABLE IF EXISTS alphractal.fee_estimates;
@@ -136,6 +151,7 @@ SELECT
     avg(gas_used / greatest(gas_limit, 1)) AS gas_used_ratio_avg,
     sum(tx_count) AS tx_count,
     sum(burned_wei) AS burned_wei,
+    sum(total_fee_wei) AS total_fee_wei,
     avg(eth_usd) AS eth_usd_avg
 FROM
 (

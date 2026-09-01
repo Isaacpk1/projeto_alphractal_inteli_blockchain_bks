@@ -157,12 +157,23 @@ public sealed class BlockIngestionService : BackgroundService
     {
         try
         {
-            var txCount = await _metrics.GetTransactionCountAsync(block.Number, cancellationToken).ConfigureAwait(false);
+            // Os recibos trazem a taxa efetivamente paga E a contagem de
+            // transacoes na mesma resposta; com eles nao ha motivo para gastar
+            // uma segunda chamada so para contar. Sem eles, a contagem separada
+            // ainda sustenta o historico de tx_count.
+            var totals = await _metrics
+                .GetBlockFeeTotalsAsync(block.Number, cancellationToken)
+                .ConfigureAwait(false);
+
+            var txCount = totals?.TransactionCount
+                ?? await _metrics.GetTransactionCountAsync(block.Number, cancellationToken).ConfigureAwait(false);
+            var totalFeeWei = totals?.TotalFeeWei ?? BigInteger.Zero;
+
             var nextBaseFee = FeeCalculator.NextBaseFee(block.BaseFeePerGas, block.GasUsed, block.GasLimit);
             var estimates = _calculator.EstimateAll(block.BaseFeePerGas, tiers);
 
             await _spool
-                .WriteBlockAsync(block, nextBaseFee, tiers, txCount, estimates, price, cancellationToken)
+                .WriteBlockAsync(block, nextBaseFee, tiers, txCount, totalFeeWei, estimates, price, cancellationToken)
                 .ConfigureAwait(false);
 
             // Heartbeat real, substituindo os valores de seed que o /status

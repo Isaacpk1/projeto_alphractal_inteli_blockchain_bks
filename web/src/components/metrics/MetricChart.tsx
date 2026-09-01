@@ -1,6 +1,7 @@
 import {
   Area,
   Bar,
+  Brush,
   CartesianGrid,
   ComposedChart,
   Line,
@@ -11,6 +12,7 @@ import {
   YAxis,
 } from 'recharts';
 import { fmtCompactUsd, fmtDay, fmtSeriesAxis, fmtUsd } from '../../lib/format';
+import { useChartZoom } from '../../hooks/useChartZoom';
 import type { MetricDef } from '../../lib/metrics';
 import type { MetricPoint, MetricSeries } from '../../types/contract';
 import type { AxisScale, ChartStyle } from './MetricControls';
@@ -71,6 +73,7 @@ export function MetricChart({
   showPrice,
   isPercent,
 }: Props) {
+  const zoom = useChartZoom(points.length);
   // Log exige domínio estritamente positivo — sem isto o recharts renderiza vazio.
   const metricDomain: [number | string, number | string] =
     metricScale === 'log' ? ['auto', 'auto'] : isPercent ? ['auto', 'auto'] : [0, 'auto'];
@@ -164,7 +167,15 @@ export function MetricChart({
   }
 
   return (
-    <div className="chart-area">
+    <div className="chart-area chart-area--zoomable" {...zoom.handlers}>
+      <div className="chart-zoom-hint" aria-hidden="true">
+        Pinça ou Ctrl+roda para ampliar · duplo clique para restaurar
+      </div>
+      {zoom.isZoomed && (
+        <button type="button" className="chart-zoom-reset" onClick={zoom.reset}>
+          Restaurar zoom
+        </button>
+      )}
       <div className="chart-legend" aria-hidden="true">
         <span><i className="dot dot--base" />{def.nav}</span>
         {showPrice && <span><i className="dot dot--price" />Price</span>}
@@ -197,6 +208,22 @@ export function MetricChart({
             tickLine={false}
             minTickGap={56}
           />
+          {points.length > 2 && (
+            <Brush
+              dataKey="t"
+              height={28}
+              travellerWidth={10}
+              startIndex={zoom.range.startIndex}
+              endIndex={zoom.range.endIndex}
+              stroke="var(--border-strong)"
+              fill="var(--surface-2)"
+              tickFormatter={(t: string) => fmtSeriesAxis(t, series.resolution)}
+              onChange={(next: { startIndex?: number; endIndex?: number }) => {
+                if (next.startIndex === undefined || next.endIndex === undefined) return;
+                zoom.setRange({ startIndex: next.startIndex, endIndex: next.endIndex });
+              }}
+            />
+          )}
           <YAxis
             yAxisId="metric"
             scale={metricScale}

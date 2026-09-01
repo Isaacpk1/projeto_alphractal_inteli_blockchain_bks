@@ -2,7 +2,7 @@
 
 # 06 — Dúvidas para o Kick-off (14/09/2026)
 
-> O TAP prevê apenas **2 reuniões obrigatórias** com o parceiro. Tudo que não for resolvido em 14/09 vira mensagem com SLA de 48 h úteis — o que pode custar dias de trabalho.
+> O TAP prevê apenas **2 reuniões obrigatórias** com o parceiro. Tudo que não for resolvido em 14/09 vira solicitação assíncrona com SLA de 48 h úteis — o que pode custar dias de trabalho.
 > **Numeração canônica.** Esta é a lista mestra; qualquer referência a "dúvida nº X" em outro documento aponta para cá. IDs são imutáveis — dúvida respondida é marcada como encerrada, nunca reaproveitada.
 
 ---
@@ -67,7 +67,7 @@ As encerradas vieram da conversa de **18/08/2026** com Kadota Manauara — trans
 
 **~~8. Padrão das faixas de velocidade.~~** ✅ **Encerrada em 18/08:** liberdade concedida. RN-02 usa p25/p50/p90 sobre 20 blocos.
 
-**9. Alertas.** O painel deve incluir alertas/notificações — visual apenas, ou também e-mail/Telegram? Está no MVP ou é evolução futura?
+**9. Alertas.** O painel deve incluir alertas/notificações — somente na interface ou também por canais externos? Está no MVP ou é evolução futura?
 → *Impacta:* RF-30, D-12.
 
 **10. Métrica de sucesso.** ✅ **Parcial:** em 18/08 confirmaram que querem **análise de negócio** (*"queremos, pode fazer aê"*), o que valida a direção de D-01, D-02 e D-04.
@@ -94,7 +94,7 @@ As encerradas vieram da conversa de **18/08/2026** com Kadota Manauara — trans
 
 ## Processo
 
-**~~17. Canal e ponto focal.~~** ✅ **Encerrada:** WhatsApp, com **Kadota Manauara** como ponto focal.
+**~~17. Canal e ponto focal.~~** ✅ **Encerrada:** canal assíncrono oficial, com **Kadota Manauara** como ponto focal.
 → *Ainda vale confirmar:* há um ponto focal **técnico** separado, para dúvidas de .NET/ClickHouse?
 
 **18. Checkpoint intermediário.** Haverá alguma revisão informal (ex.: fim da semana 2)? O TAP prevê só 2 reuniões, mas 15 minutos no meio do caminho evitam retrabalho.
@@ -170,7 +170,7 @@ ou **(b)** MVC com Razor, com o **servidor .NET renderizando** a tela? Se for (b
 | 14 | *"estrutura MVC"* | 18/08/26 | RNF-31 criado; [09 §2](./09-arquitetura-e-stack.md) |
 | 15 | | | |
 | 16 | | | |
-| 17 | WhatsApp · Kadota Manauara | 18/08/26 | Ponto focal registrado |
+| 17 | Canal assíncrono oficial · Kadota Manauara | 18/08/26 | Ponto focal registrado |
 | 18 | | | |
 | 19 | | | |
 | 20 | | | |

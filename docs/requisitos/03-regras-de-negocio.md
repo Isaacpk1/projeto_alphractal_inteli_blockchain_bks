@@ -50,6 +50,21 @@ custo_usd = custo_eth × preço_ETH_USD
 
 A cotação é atualizada no máximo a cada **60 s**. Se estiver defasada há mais de **5 min**, o valor em USD deve ser exibido como desatualizado.
 
+### RN-17 — Total de taxas efetivamente pagas
+
+O agregado **Total Fees** não usa o percentil mediano da RN-02. Ele soma a taxa
+efetiva de cada transação a partir dos recibos:
+
+```
+total_fee_wei(bloco) = Σ (receipt.gasUsed × receipt.effectiveGasPrice)
+```
+
+`burned_wei` contém somente a base fee queimada; `total_fee_wei` contém base fee
+mais gorjeta. A mediana de `priorityFee` é apropriada para recomendar uma faixa
+de velocidade, mas não representa a média ponderada das gorjetas pagas e
+subestima o total quando contratos, MEV e liquidações dominam o bloco. Decisão e
+validação: [ADR-004](../adr/004-total-de-taxas-vem-do-recibo.md).
+
 ### RN-06 — Unidades e precisão
 
 - Exibição: gwei com 2 casas · USD com 2 casas · ETH com até 6 casas.

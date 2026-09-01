@@ -12,4 +12,6 @@ sem gerar erro de compilação em lugar nenhum. É a fonte única do contrato (R
 
 - Nome de campo em `camelCase`, estável. Renomear é breaking change: avise o front.
 - Unidades já convertidas: gwei, ETH e USD. Wei não sai da API.
+- Histórico e último bloco distinguem `burnedEth` de `totalFeeEth`; o segundo é
+  o total efetivamente pago conforme a [ADR-004](../../../../docs/adr/004-total-de-taxas-vem-do-recibo.md).
 - Muda quando **o front pede formato diferente**, não quando a rede muda.

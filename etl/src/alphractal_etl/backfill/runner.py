@@ -33,6 +33,16 @@ class BackfillConfig:
     # protege e o ritmo, nao o total. Um lote de N blocos custa ~16xN unidades;
     # no plano gratuito (~330 CU/s) isso da ~20 blocos por segundo.
     intervalo_minimo: float = 0.0
+    # Blocos por chamada de `eth_getBlockReceipts`, que preenche total_fee_wei.
+    #
+    # Lote PROPRIO e muito menor que o de blocos porque a resposta e de outra
+    # ordem de grandeza: o recibo carrega os logs de cada transacao, entao um
+    # bloco cheio passa de 1 MB e um lote de 100 estouraria o timeout.
+    #
+    # Zero desliga a coleta e grava total_fee_wei = 0 — util para refazer so a
+    # serie de base fee sem pagar o custo dos recibos. Com zero, o painel
+    # continua caindo na estimativa antiga naquele periodo.
+    recibos_por_lote: int = 8
 
     @classmethod
     def from_values(
@@ -43,6 +53,7 @@ class BackfillConfig:
         batch_size: int,
         blocks_per_file: int = 0,
         intervalo_minimo: float = 0.0,
+        recibos_por_lote: int = 8,
     ) -> "BackfillConfig":
         if from_block < 0 or to_block < from_block:
             raise ValueError("intervalo de blocos invalido")
@@ -54,6 +65,8 @@ class BackfillConfig:
             raise ValueError("blocks-per-file deve ser >= batch-size")
         if intervalo_minimo < 0:
             raise ValueError("pausa-lote nao pode ser negativa")
+        if not 0 <= recibos_por_lote <= 64:
+            raise ValueError("recibos-por-lote deve estar entre 0 e 64")
         try:
             price = Decimal(eth_usd)
         except InvalidOperation as exc:
@@ -69,6 +82,7 @@ class BackfillConfig:
             alchemy_api_key=api_key,
             blocks_per_file=blocks_per_file,
             intervalo_minimo=intervalo_minimo,
+            recibos_por_lote=recibos_por_lote,
         )
 
 
@@ -114,6 +128,7 @@ def run_backfill(config: BackfillConfig, client: AlchemyClient | None = None) ->
             if history["oldest_block"] != start:
                 raise AlchemyError(f"janela inesperada: esperado {start}, recebido {history['oldest_block']}")
             blocks = client.get_blocks(block_numbers)
+            totais = _coletar_totais(client, block_numbers, config.recibos_por_lote)
             rewards = history["reward"]
             base_fees = history["base_fee_per_gas"]
             if len(rewards) != len(blocks):
@@ -132,6 +147,7 @@ def run_backfill(config: BackfillConfig, client: AlchemyClient | None = None) ->
                     "tx_count": block["tx_count"], "priority_fee_p10": reward[0],
                     "priority_fee_p50": reward[1], "priority_fee_p90": reward[2],
                     "burned_wei": block["base_fee_per_gas"] * block["gas_used"],
+                    "total_fee_wei": totais.get(block["number"], 0),
                     "eth_usd": str(config.eth_usd),
                 }
                 if primeiro_bloco is None:
@@ -150,3 +166,24 @@ def run_backfill(config: BackfillConfig, client: AlchemyClient | None = None) ->
         if owns_client:
             client.close()
     return generated
+
+
+def _coletar_totais(
+    client: AlchemyClient,
+    block_numbers: list[int],
+    recibos_por_lote: int,
+) -> dict[int, int]:
+    """Soma a taxa efetivamente paga em cada bloco, em sub-lotes.
+
+    Sub-lote proprio porque a resposta de recibos e ordens de grandeza maior que
+    a de cabecalhos: pedir os recibos dos mesmos 100 blocos do lote de
+    `get_blocks` traria dezenas de MB numa unica resposta.
+    """
+    if recibos_por_lote <= 0:
+        return {}
+    totais: dict[int, int] = {}
+    for inicio in range(0, len(block_numbers), recibos_por_lote):
+        fatia = block_numbers[inicio:inicio + recibos_por_lote]
+        for numero, (total_fee_wei, _tx_count) in client.get_block_fee_totals(fatia).items():
+            totais[numero] = total_fee_wei
+    return totais

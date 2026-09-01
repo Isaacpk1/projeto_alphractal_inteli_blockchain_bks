@@ -14,7 +14,7 @@ RNF-01 a RNF-31. IDs cancelados são mantidos riscados e nunca reaproveitados.
 | RNF-02 | O endpoint de snapshot deve responder em **< 300 ms (p95)**, servido do estado em memória, sem chamada síncrona ao RPC. | Teste de carga simples (`autocannon`/`k6`) |
 | RNF-03 | O frontend não deve re-renderizar a árvore inteira a cada atualização; atualizações devem ser isoladas por componente (memoização / estado local). | React DevTools Profiler — nenhum render desnecessário acima do card |
 | RNF-04 | O sistema deve suportar pelo menos **100 clientes SSE simultâneos** com uma única conexão RPC. | Script de 100 conexões `EventSource` mantidas por 10 min |
-| RNF-05 | O consumo de Compute Units deve caber no plano contratado com **margem de segurança ≥ 30%**. O MVP obrigatório (`newHeads` + `eth_feeHistory`) consome ~17,7 M CU/mês contra 30 M do plano gratuito — **41% de margem, dentro do limite**. Somando D-06, sobe para ~22 M e a margem cai a **27%, abaixo do exigido**: D-06 só entra com plano pago ou com o ingestor não rodando 24/7. Ver [08 — Orçamento RPC](./08-orcamento-rpc.md). | Painel de uso do provedor conferido ao fim da semana 2, antes de aprovar qualquer item do backlog que aumente o tráfego |
+| RNF-05 | O consumo de Compute Units deve caber no plano contratado com **margem de segurança ≥ 30%**. Com `eth_getBlockReceipts`, necessário para Total Fees correto, o MVP consome ~22 M CU/mês contra 30 M do plano gratuito — **27% de margem, abaixo do alvo**. Operação contínua exige plano pago ou renegociação explícita da margem; D-06 adicionaria outros ~4,3 M. Ver [08 — Orçamento RPC](./08-orcamento-rpc.md). | Painel de uso do provedor conferido antes da operação contínua e de qualquer item que aumente o tráfego |
 
 ## 2. Confiabilidade
 

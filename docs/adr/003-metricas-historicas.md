@@ -46,6 +46,10 @@ abaixo explica que não virá.
 | Mean Tx Fee (USD) | `mean-tx-fee-usd` | direto |
 | **Mean Tx Fee per Byte** | **`mean-fee-per-gas` (gwei)** | ⚠️ ver abaixo |
 
+As quatro primeiras dependem do total efetivamente pago, persistido como
+`total_fee_wei` a partir dos recibos. Não se recompõe esse valor usando a mediana
+da gorjeta; a razão e a validação estão na [ADR-004](./004-total-de-taxas-vem-do-recibo.md).
+
 **A quinta não é tradução literal, e não poderia ser.** Bitcoin cobra por
 **byte** de blockspace; Ethereum cobra por **unidade de gas**. "Fee per byte"
 não existe no Ethereum — a métrica equivalente, que responde à mesma pergunta

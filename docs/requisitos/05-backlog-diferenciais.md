@@ -120,7 +120,7 @@ Isso é inteligência de mercado — literalmente o negócio da Alphractal. É o
 | D-09 | **Modo replay** de um período gravado | 1 dia | Salva a demo se a rede estiver calma em 05/10; serve de fixture de teste |
 | D-10 | **Sobreposição gas × volatilidade do ETH** | 2 dias | Correlação de dados é o terreno natural da Alphractal |
 | D-11 | **Expor o stream como API/webhook pública** | 1 dia | Aumenta a chance de o parceiro absorver o código de verdade |
-| D-12 | **Alertas por e-mail/Telegram** no limiar do RF-30 | 1,5 dia | Extensão natural do alerta visual — confirmar interesse (dúvida nº 9) |
+| D-12 | **Alertas por canais externos** no limiar do RF-30 | 1,5 dia | Extensão natural do alerta visual — confirmar interesse (dúvida nº 9) |
 
 ---
 

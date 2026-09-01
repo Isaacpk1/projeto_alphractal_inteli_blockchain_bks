@@ -18,6 +18,18 @@ public interface IChainMetricsProvider
         int blockCount,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Taxa efetivamente paga no bloco, somando os recibos (<c>eth_getBlockReceipts</c>).
+    /// </summary>
+    /// <remarks>
+    /// Devolve <c>null</c> quando o RPC nao esta configurado ou a chamada falha:
+    /// o painel ao vivo nao usa este numero, so o historico. Degradar para a
+    /// contagem separada de transacoes e melhor que interromper a ingestao.
+    /// </remarks>
+    Task<BlockFeeTotals?> GetBlockFeeTotalsAsync(
+        BigInteger blockNumber,
+        CancellationToken cancellationToken);
+
     /// <summary>Numero de transacoes de um bloco — usado no spool (<c>tx_count</c>).</summary>
     Task<uint> GetTransactionCountAsync(BigInteger blockNumber, CancellationToken cancellationToken);
 

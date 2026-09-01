@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Area,
   Bar,
+  Brush,
   CartesianGrid,
   ComposedChart,
   ResponsiveContainer,
@@ -10,6 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 import { useFeesSlice } from '../../hooks/useFeesSlice';
+import { useChartZoom } from '../../hooks/useChartZoom';
 import { fetchHistoryWindow } from '../../lib/feesStore';
 import type { FeesState } from '../../lib/feesStore';
 import type { ChartWindow } from '../../lib/transport';
@@ -48,8 +50,18 @@ function ChartTooltip({ active, payload }: TooltipShape) {
 
 /** Núcleo apresentacional — recebe os pontos prontos, não busca nada. */
 export function FeeChartCore({ data }: { data: HistoryPoint[] }) {
+  const zoom = useChartZoom(data.length);
+
   return (
-    <div className="chart-area">
+    <div className="chart-area chart-area--zoomable" {...zoom.handlers}>
+      <div className="chart-zoom-hint" aria-hidden="true">
+        Pinça ou Ctrl+roda para ampliar · duplo clique para restaurar
+      </div>
+      {zoom.isZoomed && (
+        <button type="button" className="chart-zoom-reset" onClick={zoom.reset}>
+          Restaurar zoom
+        </button>
+      )}
       <ResponsiveContainer width="100%" height={320}>
         <ComposedChart data={data} margin={{ top: 12, right: 8, bottom: 0, left: 0 }}>
           <defs>
@@ -67,6 +79,22 @@ export function FeeChartCore({ data }: { data: HistoryPoint[] }) {
             tickLine={false}
             minTickGap={48}
           />
+          {data.length > 2 && (
+            <Brush
+              dataKey="blockTimestampUtc"
+              height={26}
+              travellerWidth={10}
+              startIndex={zoom.range.startIndex}
+              endIndex={zoom.range.endIndex}
+              stroke="var(--border-strong)"
+              fill="var(--surface-2)"
+              tickFormatter={fmtAxisTime}
+              onChange={(next: { startIndex?: number; endIndex?: number }) => {
+                if (next.startIndex === undefined || next.endIndex === undefined) return;
+                zoom.setRange({ startIndex: next.startIndex, endIndex: next.endIndex });
+              }}
+            />
+          )}
           <YAxis
             tickFormatter={(v: number) => `${Math.round(v)} gwei`}
             tick={{ fill: 'var(--text-faint)', fontSize: 12 }}

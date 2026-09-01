@@ -107,6 +107,10 @@ export function fmtDay(iso: string): string {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
+    // Buckets diarios sao definidos em UTC pelo ClickHouse. Sem fixar o fuso,
+    // 00:00 UTC vira 21:00 do dia anterior em Sao Paulo e o tooltip atribui o
+    // agregado ao dia errado.
+    timeZone: 'UTC',
   });
 }
 
@@ -115,6 +119,9 @@ export function fmtSeriesAxis(iso: string, resolution: '1h' | '1d'): string {
   const d = new Date(iso);
   return resolution === '1h'
     ? `${String(d.getHours()).padStart(2, '0')}:00`
-    : d.toLocaleDateString('en-US', { day: '2-digit', month: 'short' });
+    : d.toLocaleDateString('en-US', {
+        day: '2-digit',
+        month: 'short',
+        timeZone: 'UTC',
+      });
 }
-

@@ -15,3 +15,6 @@ Duas responsabilidades, ambas de I/O:
 - SQL não mora em string dentro do `.cs` — vai em `Sql/`.
 - Convenção do spool: escreve em `spool/pending/blocks-YYYYMMDD-HHMM.ndjson`, fecha
   ao virar o minuto e move para `spool/ready/`. Só o ETL toca em `ready/`.
+- A linha de `eth_blocks` inclui `burned_wei` (somente base fee) e
+  `total_fee_wei` (base fee + gorjeta efetivamente paga). São conceitos
+  diferentes e ambos usam inteiro largo.

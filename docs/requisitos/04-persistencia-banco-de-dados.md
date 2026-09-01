@@ -22,7 +22,7 @@ de banco mantém o arquivo em `processing/`, retomado no ciclo seguinte.
 
 ## Tabelas de entrada
 
-- `eth_blocks`: bloco, taxas percentis, gas, burn e preço ETH/USD.
+- `eth_blocks`: bloco, taxas percentis, gas, `burned_wei`, `total_fee_wei` e preço ETH/USD.
 - `mempool_samples`: amostras sub-bloco. **A coluna `pending_tx_count` conta as
   transações do bloco pendente (~100–300), não o tamanho da fila de espera
   (~10⁵).** Ver R-21 em [07 — Riscos](./07-riscos.md).
@@ -30,7 +30,8 @@ de banco mantém o arquivo em `processing/`, retomado no ciclo seguinte.
 - `eth_usd_prices`: série do preço utilizado nos cálculos.
 - `ingestion_health`: heartbeat de `ws_listener`, `etl` e `api`.
 
-Wei usa `UInt64`/`UInt128`; valores monetários usam `Decimal`. Todos os timestamps
+`burned_wei` é somente a base fee queimada; `total_fee_wei` é a soma efetivamente
+paga (base + gorjeta) obtida dos recibos. Wei usa `UInt64`/`UInt128`; valores monetários usam `Decimal`. Todos os timestamps
 incluem timezone UTC. O contrato Python rejeita campos extras, ausentes, valores
 unsigned negativos e timestamps sem timezone antes de acessar o banco.
 
@@ -80,6 +81,7 @@ usuário da API recebe `SELECT` nas views, não nas tabelas brutas.
 ## Backfill
 
 O backfill acessa a Alchemy por HTTP, ancora `eth_feeHistory` em blocos explícitos
-e gera o mesmo NDJSON do fluxo normal. Ele não escreve diretamente no banco. O
+e consulta `eth_getBlockReceipts` em sublotes para preencher o total pago. Ele
+gera o mesmo NDJSON do fluxo normal e não escreve diretamente no banco. O
 valor adicional de `baseFeePerGas` retornado pelo RPC já é a base fee do próximo
 bloco e não deve ser projetado outra vez.

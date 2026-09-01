@@ -43,6 +43,23 @@ def _e_rate_limit(erro: Any) -> bool:
     return "compute units" in str(erro.get("message", "")).lower()
 
 
+def _somar_recibos(receipts: list[Any], block_number: int) -> tuple[int, int]:
+    """Soma gasUsed x effectiveGasPrice dos recibos de um bloco."""
+    total = 0
+    for receipt in receipts:
+        if not isinstance(receipt, dict):
+            raise AlchemyError(f"recibo invalido no bloco {block_number}")
+        # Um recibo sem effectiveGasPrice seria pre-London ou de rede que nao
+        # implementa o campo. Falhar e melhor que somar zero: zero passaria
+        # despercebido no rollup e voltaria a subestimar o total em silencio.
+        if "effectiveGasPrice" not in receipt or "gasUsed" not in receipt:
+            raise AlchemyError(
+                f"recibo sem gasUsed/effectiveGasPrice no bloco {block_number}"
+            )
+        total += int(receipt["gasUsed"], 16) * int(receipt["effectiveGasPrice"], 16)
+    return total, len(receipts)
+
+
 class AlchemyClient:
     def __init__(
         self,
@@ -66,6 +83,12 @@ class AlchemyClient:
             status_forcelist=(429, 500, 502, 503, 504),
             allowed_methods=frozenset({"POST"}),
             respect_retry_after_header=True,
+            # Sem isto, esgotar as tentativas levanta RetryError e a resposta e
+            # DESCARTADA — some o status que explica a falha, e "sem resposta"
+            # (o mesmo texto de uma queda de rede) vira o unico sinal. Com
+            # False, a ultima resposta volta e o raise_for_status abaixo diz se
+            # foi 429 (cota/throughput) ou 5xx (a Alchemy fora do ar).
+            raise_on_status=False,
         )
         self._session.mount("https://", HTTPAdapter(max_retries=retries))
 
@@ -144,6 +167,59 @@ class AlchemyClient:
             raise AlchemyError(f"blocos ausentes no batch: {missing}")
         return [results[number] for number in block_numbers]
 
+    def get_block_fee_totals(self, block_numbers: list[int]) -> dict[int, tuple[int, int]]:
+        """Taxa efetivamente paga em cada bloco, via `eth_getBlockReceipts`.
+
+        Devolve `{numero: (total_fee_wei, tx_count)}`, onde `total_fee_wei` e a
+        soma de `gasUsed x effectiveGasPrice` de cada recibo — base fee queimada
+        MAIS gorjeta, transacao a transacao.
+
+        Nao da para derivar esse total das colunas que ja temos: o percentil de
+        gorjeta que o `eth_feeHistory` entrega e uma MEDIANA, e a distribuicao de
+        gorjetas tem cauda pesada (contratos, MEV, liquidacoes pagam muito acima
+        e consomem muito gas). Estimar pela mediana errava por metade.
+
+        A resposta e cara: um recibo carrega todos os logs da transacao, entao um
+        bloco cheio passa facil de 1 MB. Por isso este metodo tem lote proprio,
+        menor que o de `get_blocks` — ver `--recibos-por-lote` no backfill.
+        """
+        if not block_numbers:
+            return {}
+        requests_by_id: dict[int, int] = {}
+        batch = []
+        for number in block_numbers:
+            request_id = next(self._ids)
+            requests_by_id[request_id] = number
+            batch.append({
+                "jsonrpc": "2.0", "id": request_id, "method": "eth_getBlockReceipts",
+                "params": [hex(number)],
+            })
+        payload = self._post_com_retry(batch)
+        if not isinstance(payload, list):
+            raise AlchemyError("resposta batch de recibos invalida")
+        results: dict[int, tuple[int, int]] = {}
+        for item in payload:
+            if not isinstance(item, dict) or "id" not in item:
+                raise AlchemyError("item batch de recibos invalido")
+            request_id = int(item["id"])
+            expected_number = requests_by_id.get(request_id)
+            if expected_number is None:
+                raise AlchemyError(f"id batch desconhecido: {request_id}")
+            if "error" in item:
+                raise AlchemyError(
+                    f"eth_getBlockReceipts falhou para o bloco {expected_number}: {item['error']}"
+                )
+            receipts = item.get("result")
+            if receipts is None:
+                raise AlchemyError(f"recibos nao encontrados: {expected_number}")
+            if not isinstance(receipts, list):
+                raise AlchemyError(f"recibos em formato inesperado: {expected_number}")
+            results[expected_number] = _somar_recibos(receipts, expected_number)
+        missing = sorted(set(block_numbers) - set(results))
+        if missing:
+            raise AlchemyError(f"blocos sem recibos no batch: {missing}")
+        return results
+
     def _post_com_retry(self, payload: Any) -> Any:
         """POST com backoff exponencial quando a resposta indica throughput estourado.
 
@@ -202,6 +278,13 @@ class AlchemyClient:
             return response.json()
         except requests.RequestException as exc:
             status = exc.response.status_code if exc.response is not None else "sem resposta"
-            raise AlchemyError(f"falha HTTP na Alchemy (status={status})") from None
+            # O tipo da excecao entra na mensagem porque "sem resposta" sozinho
+            # nao distingue as causas, que pedem correcoes opostas: ConnectionError
+            # e rede/DNS/proxy, Timeout e a Alchemy demorando, SSLError e
+            # interceptacao de certificado. A mensagem da excecao em si fica de
+            # fora de proposito: ela carrega a URL, e a URL carrega a chave.
+            raise AlchemyError(
+                f"falha HTTP na Alchemy (status={status}, causa={type(exc).__name__})"
+            ) from None
         except ValueError:
             raise AlchemyError("Alchemy retornou JSON invalido") from None

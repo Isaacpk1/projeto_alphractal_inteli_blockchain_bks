@@ -24,6 +24,7 @@ public sealed record ColdLatestBlock
     public required double GasUsedRatio { get; init; }
     public required uint TxCount { get; init; }
     public required double BurnedEth { get; init; }
+    public required double TotalFeeEth { get; init; }
     public required decimal EthUsd { get; init; }
     public required long AgeMs { get; init; }
 }
@@ -68,6 +69,7 @@ public sealed record ColdFeeHistoryPoint
     public required double GasUsedRatioAvg { get; init; }
     public required ulong TxCount { get; init; }
     public required double BurnedEth { get; init; }
+    public required double TotalFeeEth { get; init; }
     public required decimal EthUsdAvg { get; init; }
 }
 

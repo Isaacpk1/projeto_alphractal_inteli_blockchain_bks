@@ -2,7 +2,7 @@
 
 # 10 — Registro de Respostas do Parceiro
 
-> **Fonte:** conversa por WhatsApp com **Kadota Manauara** (Alphractal / Nortech Labs) em **18/08/2026**, entre 18:54 e 19:13.
+> **Fonte:** conversa em canal assíncrono com **Kadota Manauara** (Alphractal / Nortech Labs) em **18/08/2026**, entre 18:54 e 19:13.
 > Este documento é a **procedência** das decisões tomadas fora do TAP. Sempre que a especificação disser "definido pelo parceiro", a origem está aqui.
 > Respostas obtidas **antes** do kick-off oficial (14/09/2026) — o que não as invalida, mas significa que devem ser **reconfirmadas em ata** na reunião de abertura.
 
@@ -44,7 +44,7 @@
 | F | Pipeline próprio: ingestão → tratamento → API → front | 24, 25 | Confirma a divisão do [09 §1](./09-arquitetura-e-stack.md). **Deixa de ser proposta nossa: é o padrão interno deles** |
 | G | Frequência *"nível diário"* | — | Ver §3 abaixo — **não encerra a dúvida, cria uma** |
 | H | *"4 métricas misteriosas"* | — | Ver §3 abaixo |
-| I | Ponto focal: Kadota Manauara, via WhatsApp | 17 | [06](./06-duvidas-kickoff.md) atualizado |
+| I | Ponto focal: Kadota Manauara, via canal assíncrono oficial | 17 | [06](./06-duvidas-kickoff.md) atualizado |
 
 ---
 
@@ -89,4 +89,4 @@ As duas pendências **bloqueantes** não foram tocadas nesta conversa:
 
 ## 5. Observação de processo
 
-Esta conversa aconteceu **fora das duas reuniões previstas no TAP** e resolveu sete dúvidas. Vale registrar que o canal assíncrono com o parceiro está funcionando melhor do que o TAP previa (48 h úteis) — o que reduz o risco **R-07**, mas **não** substitui a ata do kick-off. Toda decisão desta página deve ser lida em voz alta em 14/09 e confirmada, porque respostas de WhatsApp em fluxo rápido são exatamente o tipo de acordo que ninguém lembra ter feito quando a entrega diverge.
+Esta conversa aconteceu **fora das duas reuniões previstas no TAP** e resolveu sete dúvidas. Vale registrar que o canal assíncrono com o parceiro está funcionando melhor do que o TAP previa (48 h úteis) — o que reduz o risco **R-07**, mas **não** substitui a ata do kick-off. Toda decisão desta página deve ser lida em voz alta em 14/09 e confirmada, porque respostas rápidas em canais informais podem gerar acordos sem o registro necessário para orientar a entrega.

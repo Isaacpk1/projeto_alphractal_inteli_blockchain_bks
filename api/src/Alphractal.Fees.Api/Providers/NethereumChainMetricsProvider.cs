@@ -3,13 +3,15 @@ using Alphractal.Fees.Api.Configuration;
 using Alphractal.Fees.Api.Models.Domain;
 using Microsoft.Extensions.Options;
 using Nethereum.Hex.HexTypes;
+using Nethereum.JsonRpc.Client;
 using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Web3;
+using Newtonsoft.Json.Linq;
 
 namespace Alphractal.Fees.Api.Providers;
 
 /// <summary>
-/// <c>eth_feeHistory</c> e <c>eth_getBlockByNumber</c> por HTTP.
+/// <c>eth_feeHistory</c>, <c>eth_getBlockReceipts</c> e contagem de transacoes por HTTP.
 /// </summary>
 /// <remarks>
 /// Falha aqui NAO derruba a ingestao: sem faixas de velocidade o painel ainda
@@ -101,6 +103,74 @@ public sealed class NethereumChainMetricsProvider : IChainMetricsProvider
         }
 
         return samples;
+    }
+
+    public async Task<BlockFeeTotals?> GetBlockFeeTotalsAsync(
+        BigInteger blockNumber,
+        CancellationToken cancellationToken)
+    {
+        if (_web3 is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            // Chamada crua em vez de um DTO da Nethereum: a 6.1.0 nao expoe
+            // eth_getBlockReceipts, e so precisamos de dois campos por recibo.
+            // JArray evita desserializar os logs, que sao a maior parte do
+            // payload e nao entram em nenhuma conta.
+            var request = new RpcRequest(
+                Guid.NewGuid().ToString(),
+                "eth_getBlockReceipts",
+                new HexBigInteger(blockNumber).HexValue);
+
+            var receipts = await _web3.Client
+                .SendRequestAsync<JArray>(request)
+                .ConfigureAwait(false);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (receipts is null)
+            {
+                _logger.LogWarning("eth_getBlockReceipts nao devolveu recibos para o bloco {Block}.", blockNumber);
+                return null;
+            }
+
+            var total = BigInteger.Zero;
+            uint count = 0;
+
+            foreach (var receipt in receipts)
+            {
+                var gasUsed = receipt["gasUsed"]?.Value<string>();
+                var effectiveGasPrice = receipt["effectiveGasPrice"]?.Value<string>();
+
+                // Recibo sem os dois campos so aconteceria em rede pre-London.
+                // Devolver null e melhor que somar zero: um total parcial entra
+                // no rollup indistinguivel de um total correto, e volta a
+                // subestimar as taxas em silencio.
+                if (gasUsed is null || effectiveGasPrice is null)
+                {
+                    _logger.LogWarning(
+                        "Recibo sem gasUsed/effectiveGasPrice no bloco {Block}. Total descartado.",
+                        blockNumber);
+                    return null;
+                }
+
+                total += new HexBigInteger(gasUsed).Value * new HexBigInteger(effectiveGasPrice).Value;
+                count++;
+            }
+
+            return new BlockFeeTotals { TotalFeeWei = total, TransactionCount = count };
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _logger.LogWarning(
+                exception,
+                "eth_getBlockReceipts falhou no bloco {Block}. O bloco vai para o spool sem total_fee_wei.",
+                blockNumber);
+            return null;
+        }
     }
 
     public async Task<uint> GetPendingTransactionCountAsync(CancellationToken cancellationToken)

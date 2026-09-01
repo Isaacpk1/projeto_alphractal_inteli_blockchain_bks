@@ -150,6 +150,7 @@ public sealed class FeesController : ControllerBase
                 GasUsedRatioAvg = point.GasUsedRatioAvg,
                 TxCount = point.TxCount,
                 BurnedEth = point.BurnedEth,
+                TotalFeeEth = point.TotalFeeEth,
                 EthUsdAvg = point.EthUsdAvg,
             }).ToList(),
         });
@@ -393,6 +394,7 @@ public sealed class FeesController : ControllerBase
         GasUsedRatio = block.GasUsedRatio,
         TxCount = block.TxCount,
         BurnedEth = block.BurnedEth,
+        TotalFeeEth = block.TotalFeeEth,
         EthUsd = block.EthUsd,
         DataAgeSeconds = Math.Max(0, block.AgeMs) / 1000d,
         Source = "cold",

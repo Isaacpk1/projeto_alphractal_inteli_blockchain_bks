@@ -48,12 +48,15 @@ src/
 As cinco métricas aparecem na navegação lateral sob *Fee metrics*:
 `total-fees-eth`, `total-fees-usd`, `mean-tx-fee-eth`, `mean-tx-fee-usd` e
 `mean-fee-per-gas`. Cada uma tem rate of change, smoothing (SMA/EMA), escalas
-independentes para métrica e preço, overlay do preço do ETH e export CSV.
+independentes para métrica e preço, overlay do preço do ETH, export CSV e zoom
+por pinça de dois dedos, `Ctrl + roda` ou seleção na faixa inferior. Duplo clique
+restaura a visão completa. O gráfico Real-Time Gas oferece os mesmos gestos e
+acompanha o fim da série enquanto a seleção estiver encostada nele.
 
-Os períodos são **24H, 7D e 30D** — exatamente os que a RF-38 nomeia. Não há
-janela mais longa porque não haveria dado: a RN-15 retém blocos brutos por 30
-dias e o projeto tem quatro semanas de coleta. Pelo mesmo motivo, a suavização
-vai até 30 dias e a taxa de variação até MoM.
+Os controles oferecem **24H, 7D, 30D, 90D, YTD, 1Y e ALL**. A API retorna tudo
+que existir nos rollups: os blocos brutos expiram em 30 dias, mas os agregados
+diários não têm TTL. Em uma instalação nova, períodos longos naturalmente
+mostram apenas a cobertura já coletada.
 
 Se o ClickHouse cair, essas rotas falham sozinhas e o painel ao vivo não fica
 sabendo (RNF-30). Por que estas cinco, o que foi deliberadamente deixado de
@@ -111,6 +114,12 @@ mesmo PR** — é para isso que as duas pastas estão no mesmo repositório.
 Os DTOs reais ficam separados dos modelos de tela em `contract.ts`; o adaptador
 em `lib/transport.ts` traduz velocidades, estimativas, histórico e cotação sem
 espalhar detalhes do backend pelos componentes.
+
+Para as quatro métricas baseadas em total pago, `transport.ts` usa
+`totalFeeEth`, produzido por recibos. Buckets legados com zero ainda usam a
+estimativa antiga apenas como fallback; refazer o backfill elimina a diferença.
+O motivo e a validação contra `FeeTotNtv` estão na
+[ADR-004](../docs/adr/004-total-de-taxas-vem-do-recibo.md).
 
 ## Rodar
 

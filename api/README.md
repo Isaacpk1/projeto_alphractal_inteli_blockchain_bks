@@ -1,10 +1,8 @@
 # api/ — API .NET 10 (MVC)
 
-**Dono:** você. **Ingere:** Ethereum via Nethereum (WebSocket). **Serve:** SSE e JSON
+**Dono:** back-end. **Ingere:** Ethereum via Nethereum (WebSocket + HTTP). **Serve:** SSE e JSON
 para o painel em [`web/`](../web/README.md). **Consulta:** ClickHouse — somente para histórico.
-
-Ainda não implementada. A estrutura abaixo é o acordo de onde cada coisa mora, e
-espelha o mapeamento de camadas de
+A estrutura abaixo espelha o mapeamento de camadas de
 [`docs/requisitos/09-arquitetura-e-stack.md §2`](../docs/requisitos/09-arquitetura-e-stack.md).
 
 ```
@@ -40,10 +38,11 @@ nunca `long`. É o que elimina o risco R-03.
 
 ## Ingestão não é controller
 
-A conexão contínua com a Alchemy vive em `BackgroundServices/BlockIngestionService`,
-registrado como `IHostedService`. Ela é a **única** conexão RPC do projeto: o ETL
-lê o spool NDJSON que esta API escreve, não a rede. Duas conexões para a mesma
-fonte dobrariam o consumo do [orçamento de RPC](../docs/requisitos/08-orcamento-rpc.md).
+A assinatura contínua `newHeads` vive em `BackgroundServices/BlockIngestionService`,
+registrado como `IHostedService`. Para cada bloco, o mesmo serviço usa HTTP para
+`eth_feeHistory`, `eth_getBlockReceipts` e contingência. Os recibos fornecem o
+total efetivamente pago e a contagem de transações. O ETL só acessa o RPC no
+comando explícito de backfill; no serviço contínuo ele apenas drena o spool.
 
 ## Sem `Views/` Razor
 
@@ -57,10 +56,10 @@ qual dos dois templates do ASP.NET ele quis dizer.
 
 Cada pasta de `src/Alphractal.Fees.Api/` tem um `README.md` com as regras dela.
 
-## Estado atual
+## Endpoints implementados
 
-Implementado: **caminho frio de leitura**. A API conecta no ClickHouse como
-`alphractal_api` (SELECT apenas nas views `v_*`) e expoe:
+A API conecta no ClickHouse como `alphractal_api` (SELECT apenas nas views
+`v_*`) e mantém o caminho quente em memória:
 
 | Rota | Serve |
 |---|---|
@@ -71,11 +70,16 @@ Implementado: **caminho frio de leitura**. A API conecta no ClickHouse como
 | `GET /api/v1/fees/estimates` | estimativa atual por operacao/velocidade |
 | `GET /api/v1/fees/history?granularity=hour\|day&from=&to=&limit=` | serie do rollup |
 | `GET /api/v1/fees/estimates/history?from=&to=&limit=` | custo diario por operacao (D-04) |
+| `GET /api/v1/fees/percentile` | posição da base fee atual no histórico |
+| `GET /api/v1/fees/planejamento` | melhor janela horária segundo o histórico |
+| `GET /api/v1/fees/heatmap` | agregado dia-da-semana × hora |
+| `GET /api/v1/fees/eth-usd` | cotação atual e variação de 24 h |
+| `GET /api/v1/fees/snapshot` | último snapshot do caminho quente |
+| `GET /api/v1/fees/stream` | SSE de blocos e estimativas ao vivo |
 | `GET /api/v1/fees/price-stream` | SSE da cotacao ETH/USD a cada mudanca no ticker da Coinbase |
-
-Nao implementado: ingestao Nethereum, `Services/` (RN-01 a RN-05), janela de 300
-blocos, SSE e escrita do spool. `/api/v1/fees/stream` e `/snapshot` estao
-reservados em `web/src/lib/api.ts` mas ainda nao existem no servidor.
+| `GET /api/v1/fees/custo` | custo por operação para um preço de gas |
+| `GET /api/v1/fees/queima` | taxa de queima observada na janela quente |
+| `GET /api/v1/fees/window` | janela recente de blocos em memória |
 
 ClickHouse fora do ar responde **503 com ProblemDetails**, nunca 500: e estado
 previsto: o painel ao vivo nao depende do caminho frio (doc 09 secao 4).
@@ -83,14 +87,15 @@ previsto: o painel ao vivo nao depende do caminho frio (doc 09 secao 4).
 ## Rodar
 
 ```bash
-# 1. ClickHouse de pe (a primeira subida roda o initdb)
-cd infra && docker compose up -d clickhouse
+# 1. Infra, migrations, API e ETL
+cd infra
+docker compose up -d --build
 
 # 2. segredos: copie o exemplo e preencha a chave da Alchemy
 cd ../api
 copy .env.example .env      # Windows  (Linux/macOS: cp .env.example .env)
 
-# 3. subir
+# 3. alternativa ao container: subir a API no host
 dotnet run --project src/Alphractal.Fees.Api
 curl http://localhost:5080/api/v1/health
 curl http://localhost:5080/api/v1/status
@@ -126,6 +131,11 @@ cd etl && alphractal-etl backfill --from-block 23000000 --to-block 23000100 --et
 alphractal-etl run
 ```
 
+O backfill usa recibos por padrão (`--recibos-por-lote 8`) para preencher
+`total_fee_wei`. Use `0` somente quando aceitar que Total Fees fique indisponível
+ou estimado naquele intervalo. A decisão está na
+[ADR-004](../docs/adr/004-total-de-taxas-vem-do-recibo.md).
+
 ## Convencoes desta pasta
 
 - **SQL nao mora em `.cs`.** Um `.sql` por consulta em `Repositories/Sql/`,
@@ -136,8 +146,11 @@ alphractal-etl run
   mexer em consulta.
 - **Nenhuma conversao de unidade em C#**: as views ja entregam gwei, ETH e USD.
 
-O projeto de testes ainda nao foi criado — `dotnet new xunit -o tests/Alphractal.Fees.Tests`
-e adicionar ao `Alphractal.Fees.slnx`.
+Os testes vivem em `tests/Alphractal.Fees.Tests/` e rodam com:
+
+```bash
+dotnet test Alphractal.Fees.slnx
+```
 
 `Directory.Build.props` fixa `net10.0`, `Nullable=enable` e warnings como erro
 para todos os projetos da pasta (RNF-13).
