@@ -80,13 +80,16 @@ export function useChartZoom(length: number) {
     if (event.pointerType !== 'touch') return;
     event.currentTarget.setPointerCapture(event.pointerId);
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    const active = [...pointers.current.values()];
-    if (active.length === 2) {
+    // `noUncheckedIndexedAccess` não deduz nada do `length`: para o
+    // compilador, `active[0]` continua podendo ser undefined mesmo dentro de um
+    // `if (active.length === 2)`. Daí a desestruturação com guarda por valor.
+    const [primeiro, segundo] = pointers.current.values();
+    if (pointers.current.size === 2 && primeiro && segundo) {
       const rect = event.currentTarget.getBoundingClientRect();
       pinch.current = {
-        distance: Math.max(1, distance(active[0], active[1])),
+        distance: Math.max(1, distance(primeiro, segundo)),
         range,
-        centerRatio: clamp(((active[0].x + active[1].x) / 2 - rect.left) / Math.max(rect.width, 1), 0, 1),
+        centerRatio: clamp(((primeiro.x + segundo.x) / 2 - rect.left) / Math.max(rect.width, 1), 0, 1),
       };
     }
   }, [range]);
@@ -95,10 +98,10 @@ export function useChartZoom(length: number) {
     (event: ReactPointerEvent<HTMLDivElement>) => {
       if (!pointers.current.has(event.pointerId)) return;
       pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      const active = [...pointers.current.values()];
-      if (active.length !== 2 || !pinch.current) return;
+      const [primeiro, segundo] = pointers.current.values();
+      if (pointers.current.size !== 2 || !primeiro || !segundo || !pinch.current) return;
       event.preventDefault();
-      const currentDistance = Math.max(1, distance(active[0], active[1]));
+      const currentDistance = Math.max(1, distance(primeiro, segundo));
       zoomAround(pinch.current.distance / currentDistance, pinch.current.centerRatio, pinch.current.range);
     },
     [zoomAround],
