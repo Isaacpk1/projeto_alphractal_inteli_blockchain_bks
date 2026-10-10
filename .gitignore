@@ -33,3 +33,6 @@ etl/output/
 docs/_lixo_git/
 .DS_Store
 Thumbs.db
+
+# Build cache do TypeScript
+*.tsbuildinfo
