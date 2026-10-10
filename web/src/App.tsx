@@ -13,6 +13,14 @@ import { RealTimeGasView } from './views/RealTimeGasView';
 
 const SIDEBAR_STORAGE_KEY = 'af-primary-sidebar-collapsed';
 
+/**
+ * Rota de entrada. Por padrão abre a métrica de Fees, como na plataforma do
+ * parceiro. A demo pública roda sem o caminho frio (sem ClickHouse), então lá
+ * `VITE_HOME_ROUTE=/real-time-gas` abre direto na tela que só depende do
+ * caminho quente, em vez de recepcionar o visitante com "Métrica indisponível".
+ */
+const HOME_ROUTE = import.meta.env.VITE_HOME_ROUTE || metricPath(DEFAULT_METRIC.id);
+
 function loadSidebarState(): boolean {
   try {
     return localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true';
@@ -60,12 +68,9 @@ export function App() {
           <MetricsSidebar onUnavailable={() => setUnavailableOpen(true)} />
           <main className="shell__content">
             <Routes>
-              <Route
-                path="/"
-                element={<Navigate to={metricPath(DEFAULT_METRIC.id)} replace />}
-              />
-              {/* A antiga tela ao vivo continua preservada para acesso direto,
-                  mas o recorte navegável replica as quatro métricas de Fees. */}
+              <Route path="/" element={<Navigate to={HOME_ROUTE} replace />} />
+              {/* A tela ao vivo depende só do caminho quente; fica no menu de
+                  Fees ao lado das quatro métricas históricas. */}
               <Route path="/real-time-gas" element={<RealTimeGasView />} />
               <Route path="/metrics/:metricId" element={<MetricView />} />
               <Route

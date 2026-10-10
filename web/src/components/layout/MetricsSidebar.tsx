@@ -66,7 +66,7 @@ function BlockedMetricItem({
   );
 }
 
-/** Navegação interna de Metrics. Somente as quatro métricas de Fees são rotas. */
+/** Navegação interna de Metrics. Somente Real-Time Gas e as quatro métricas de Fees são rotas. */
 export function MetricsSidebar({ onUnavailable }: { onUnavailable: () => void }) {
   const { pathname, search } = useLocation();
   const featuredId = useId();
@@ -129,6 +129,10 @@ export function MetricsSidebar({ onUnavailable }: { onUnavailable: () => void })
             <ChevronDownIcon size={15} />
           </div>
           <div className="metrics-nav__fee-links">
+            <NavLink to="/real-time-gas" className={linkClass}>
+              <BoltIcon size={15} />
+              <span>Real-Time Gas</span>
+            </NavLink>
             {feeMetrics.map((metric) => {
               const IconComponent = METRIC_ICON[metric.id];
               return (

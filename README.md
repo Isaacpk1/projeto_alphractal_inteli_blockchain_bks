@@ -129,6 +129,8 @@ históricos respondem 503 e o painel mostra o aviso de indisponibilidade.
 1. No Render, **New → Blueprint** e selecione este repositório.
 2. Preencha as variáveis pedidas: `Fees__RpcWebSocketUrl` e `Fees__RpcHttpUrl`
    (Alchemy), `Cors__Origins__0` (URL do painel) e `VITE_API_BASE_URL` (URL da API).
+   O Blueprint já define `VITE_HOME_ROUTE=/real-time-gas`, para a demo abrir na tela
+   ao vivo em vez de uma métrica do caminho frio.
 3. Depois que as URLs existirem, confira as duas variáveis cruzadas e faça
    **Manual Deploy** do painel, porque o Vite embute `VITE_API_BASE_URL` no build.
 

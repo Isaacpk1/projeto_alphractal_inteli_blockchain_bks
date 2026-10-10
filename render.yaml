@@ -50,3 +50,6 @@ services:
         sync: false
       - key: VITE_USE_MOCK
         value: "false"
+      # Sem caminho frio, abre na tela que depende so do caminho quente.
+      - key: VITE_HOME_ROUTE
+        value: /real-time-gas
