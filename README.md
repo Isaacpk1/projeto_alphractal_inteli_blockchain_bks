@@ -119,6 +119,22 @@ Copie os arquivos `.env.example` e use chaves locais. Arquivos `.env` são
 ignorados pelo Git; se uma chave aparecer em log, captura de tela ou conversa,
 revogue-a e gere outra.
 
+## Deploy no Render
+
+O [`render.yaml`](./render.yaml) publica o **caminho quente** ao vivo: a API .NET
+(Web Service via Docker, que mantém o WebSocket com a Alchemy e serve o SSE) e o
+painel React (Static Site). O caminho frio fica fora: sem ClickHouse, os endpoints
+históricos respondem 503 e o painel mostra o aviso de indisponibilidade.
+
+1. No Render, **New → Blueprint** e selecione este repositório.
+2. Preencha as variáveis pedidas: `Fees__RpcWebSocketUrl` e `Fees__RpcHttpUrl`
+   (Alchemy), `Cors__Origins__0` (URL do painel) e `VITE_API_BASE_URL` (URL da API).
+3. Depois que as URLs existirem, confira as duas variáveis cruzadas e faça
+   **Manual Deploy** do painel, porque o Vite embute `VITE_API_BASE_URL` no build.
+
+No plano gratuito a API dorme após ~15 minutos sem acesso; o primeiro visitante
+espera cerca de um minuto até ela acordar e reconectar à rede.
+
 ## Escopo — o que este projeto **não** é
 
 Restrições contratuais do TAP, não escolhas técnicas:
