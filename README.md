@@ -24,6 +24,14 @@ Este projeto entrega a camada que falta — **telemetria ao vivo que traduz dado
 
 ## Demonstração
 
+**▶ [Abrir o painel ao vivo](https://alphractal-fees-web.onrender.com)** · Render
+
+A demo pública roda o **caminho quente**: blocos reais da Ethereum chegando por SSE,
+faixas de velocidade, congestionamento e custo por operação. O caminho frio
+(ClickHouse) não está hospedado, então as métricas históricas mostram o aviso de
+indisponibilidade previsto no RNF-30. No plano gratuito do Render a API dorme sem
+acesso; o primeiro carregamento pode levar cerca de um minuto.
+
 O vídeo mostra o sistema rodando de ponta a ponta: o painel recebendo bloco a
 bloco pelo SSE, as faixas de velocidade e o índice de congestionamento se
 movendo com a rede, e a aba de métricas históricas servida pelo ClickHouse.
